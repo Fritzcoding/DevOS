@@ -2,9 +2,10 @@ import React, { useEffect, useRef, useState } from "react";
 import { Zap, Settings, X } from "lucide-react";
 
 interface ShimejiProps {
-  onFeatureSelect: (feature: "code-fixer" | "environment" | "organizer" | "help" | "settings") => void;
+  onFeatureSelect: (feature: "code-fixer" | "environment" | "organizer" | "chat" | "room" | "help" | "settings") => void;
   onMinimizeToTray: () => void;
   onShowMenu: () => void;
+  onContextMenuChange?: (open: boolean) => void;
   currentProjectPath?: string;
 }
 
@@ -12,6 +13,7 @@ const Shimeji: React.FC<ShimejiProps> = ({
   onFeatureSelect,
   onMinimizeToTray,
   onShowMenu,
+  onContextMenuChange,
   currentProjectPath,
 }) => {
   const [showContextMenu, setShowContextMenu] = useState(false);
@@ -49,6 +51,7 @@ const Shimeji: React.FC<ShimejiProps> = ({
     activePointerIdRef.current = null;
 
     if (!pointerMovedRef.current) {
+      setShowContextMenu(false);
       onShowMenu();
     }
     pointerMovedRef.current = false;
@@ -69,6 +72,10 @@ const Shimeji: React.FC<ShimejiProps> = ({
     dragStartScreenRef.current = { x: e.screenX, y: e.screenY };
     shimejiRef.current?.setPointerCapture(e.pointerId);
   };
+
+  useEffect(() => {
+    onContextMenuChange?.(showContextMenu);
+  }, [showContextMenu, onContextMenuChange]);
 
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
@@ -109,7 +116,7 @@ const Shimeji: React.FC<ShimejiProps> = ({
       }}
       data-electron-interactive="true"
       className="w-16 h-16 rounded-full bg-gradient-to-br from-blue-600 to-purple-600 shadow-lg flex items-center justify-center"
-      title="DevOps Lite - Click to open menu | Right-click for options"
+      title="DevOps Lite - Click to open or close menu | Right-click for options"
     >
       <Zap className="w-8 h-8 text-white" />
 

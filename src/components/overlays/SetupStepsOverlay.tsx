@@ -4,7 +4,7 @@
  */
 
 import React, { useState } from 'react';
-import { Play, Check, AlertCircle, X } from 'lucide-react';
+import { ArrowLeft, Play, Check, AlertCircle, X } from 'lucide-react';
 
 interface SetupStep {
   step: number;
@@ -22,6 +22,7 @@ interface SetupStepsProps {
   estimated_minutes: number;
   onExecuteStep?: (step: SetupStep) => Promise<boolean>;
   onClose?: () => void;
+  onBack?: () => void;
 }
 
 const SetupStepsOverlay: React.FC<SetupStepsProps> = ({
@@ -32,6 +33,7 @@ const SetupStepsOverlay: React.FC<SetupStepsProps> = ({
   estimated_minutes,
   onExecuteStep,
   onClose,
+  onBack,
 }) => {
   const [executing, setExecuting] = useState<number | null>(null);
   const [completed, setCompleted] = useState<Set<number>>(new Set());
@@ -62,13 +64,25 @@ const SetupStepsOverlay: React.FC<SetupStepsProps> = ({
             <h2 className="text-xl font-bold">Environment Setup</h2>
             <p className="text-sm opacity-90 mt-1">Detected: {detected_type}</p>
           </div>
-          <button
-            onClick={onClose}
-            className="hover:bg-white hover:bg-opacity-20 p-2 rounded transition"
-            title="Close"
-          >
-            <X className="w-5 h-5" />
-          </button>
+          <div className="flex items-center gap-2">
+            {onBack && (
+              <button
+                onClick={onBack}
+                className="flex items-center gap-2 rounded px-3 py-2 text-sm font-semibold hover:bg-white hover:bg-opacity-20 transition"
+                title="Back to menu"
+              >
+                <ArrowLeft className="w-4 h-4" />
+                Back
+              </button>
+            )}
+            <button
+              onClick={onClose}
+              className="hover:bg-white hover:bg-opacity-20 p-2 rounded transition"
+              title="Close"
+            >
+              <X className="w-5 h-5" />
+            </button>
+          </div>
         </div>
 
         {/* Content */}

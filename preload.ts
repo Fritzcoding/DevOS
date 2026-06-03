@@ -8,8 +8,14 @@ import type { ElectronAPI } from './src/window';
 
 const electronAPI: ElectronAPI = {
   // Code Fixing
-  fixCode: (code: string, language: string, prompt: string) =>
-    ipcRenderer.invoke('devops:code-fixer:fix', { code, language, prompt }),
+  fixCode: (code: string, language: string, mode: 'manual' | 'ai' = 'ai') =>
+    ipcRenderer.invoke('devops:code-fixer:fix', { code, language, mode }),
+
+  runCodeFixAgent: (request) =>
+    ipcRenderer.invoke('devops:code-fixer:agent', request),
+
+  readClipboard: () =>
+    ipcRenderer.invoke('devops:clipboard:read'),
   
   chatAI: (message: string, context?: string) =>
     ipcRenderer.invoke('devops:chat:send', { message, context }),
@@ -37,11 +43,14 @@ const electronAPI: ElectronAPI = {
   readFile: (filePath: string) =>
     ipcRenderer.invoke('devops:file:read', { filePath }),
   
-  organizeFolder: (folderPath: string, rules?: any) =>
-    ipcRenderer.invoke('devops:file:organize', { folderPath, rules }),
+  organizeFolder: (folderPath: string, rules?: any, mode: 'professional' | 'ai' = 'professional', instruction?: string) =>
+    ipcRenderer.invoke('devops:file:organize', { folderPath, rules, mode, instruction }),
   
   applyOrganization: (folderPath: string, organization: any) =>
     ipcRenderer.invoke('devops:file:apply-org', { folderPath, organization }),
+
+  chatWithCodebase: (projectPath: string, message: string, history?: Array<{ role: 'user' | 'assistant'; content: string }>) =>
+    ipcRenderer.invoke('devops:chat:codebase', { projectPath, message, history }),
 
   // Task Management
   cancelTask: (requestId: string) =>
@@ -67,8 +76,41 @@ const electronAPI: ElectronAPI = {
   moveWindow: (x: number, y: number) =>
     ipcRenderer.invoke('devops:window:move', x, y),
 
+  resizeWindow: (width: number, height: number) =>
+    ipcRenderer.invoke('devops:window:resize', width, height),
+
   setIgnoreMouseEvents: (ignore: boolean) =>
     ipcRenderer.invoke('devops:window:set-ignore-mouse-events', ignore),
+
+  getAISettings: () =>
+    ipcRenderer.invoke('devops:ai:get-settings'),
+
+  saveAISettings: (settings) =>
+    ipcRenderer.invoke('devops:ai:save-settings', settings),
+
+  completeAISetup: () =>
+    ipcRenderer.invoke('devops:ai:complete-setup'),
+
+  getAIStatus: () =>
+    ipcRenderer.invoke('devops:ai:get-status'),
+
+  setActiveAIBackend: (backend) =>
+    ipcRenderer.invoke('devops:ai:set-active-backend', backend),
+
+  executeAIPrompt: (request) =>
+    ipcRenderer.invoke('devops:ai:execute-prompt', request),
+
+  pullOllamaModel: () =>
+    ipcRenderer.invoke('devops:ai:pull-ollama-model'),
+
+  cancelOllamaPull: () =>
+    ipcRenderer.invoke('devops:ai:cancel-ollama-pull'),
+
+  onOllamaPullProgress: (callback) => {
+    const wrappedCallback = (_event: any, progress: any) => callback(progress);
+    ipcRenderer.on('devops:ai:ollama-pull-progress', wrappedCallback);
+    return () => ipcRenderer.off('devops:ai:ollama-pull-progress', wrappedCallback);
+  },
   
   onShowMenu: (callback) => {
     const wrappedCallback = () => callback();
@@ -77,6 +119,21 @@ const electronAPI: ElectronAPI = {
   },
   selectProjectPath: () =>
     ipcRenderer.invoke('devops:dialog:select-path'),
+
+  getCurrentProjectPath: () =>
+    ipcRenderer.invoke('devops:project:get-current-path'),
+
+  createDiscussionRoom: (projectPath: string) =>
+    ipcRenderer.invoke('devops:discussion:create', { projectPath }),
+
+  joinDiscussionRoom: (projectPath: string, key: string) =>
+    ipcRenderer.invoke('devops:discussion:join', { projectPath, key }),
+
+  readDiscussionRoom: (projectPath: string, key: string) =>
+    ipcRenderer.invoke('devops:discussion:read', { projectPath, key }),
+
+  writeDiscussionRoom: (projectPath: string, key: string, content: string) =>
+    ipcRenderer.invoke('devops:discussion:write', { projectPath, key, content }),
 
   // Legacy compatibility
   organizeFolder_legacy: (path: string, rules: any) =>

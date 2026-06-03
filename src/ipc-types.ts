@@ -30,16 +30,39 @@ export interface FixCodeRequest extends IPCRequestBase {
   code: string;
   language: string;
   prompt: string;
+  mode?: 'manual' | 'ai';
   modelPreference?: 'gemini' | 'openai' | 'ollama';
 }
 
 export interface FixCodeResponse extends IPCResponseBase {
   fixed?: string;
   explanation?: string;
+  errorType?: 'API_KEY_NOT_SET' | 'API_KEY_INVALID' | 'RATE_LIMITED' | 'TOKEN_LIMIT' | 'MODEL_NOT_FOUND' | 'NETWORK' | 'UNKNOWN';
+  mode?: 'manual' | 'ai';
   modelUsed?: 'gemini' | 'openai' | 'ollama'; // which model actually fixed it
   tokensUsed?: number;
   warnings?: string[];
   suggestFallback?: boolean; // if true, suggest fallback model
+}
+
+export interface CodeFixChange {
+  path?: string;
+  original: string;
+  fixed: string;
+  explanation: string;
+  confidence: number;
+}
+
+export interface CodeFixAgentResponse extends IPCResponseBase {
+  mode?: 'manual' | 'ai';
+  scope?: 'clipboard' | 'file' | 'codebase';
+  summary?: string;
+  confidence?: number;
+  changes?: CodeFixChange[];
+  filesScanned?: number;
+  filesChanged?: number;
+  applied?: boolean;
+  errorType?: 'API_KEY_NOT_SET' | 'API_KEY_INVALID' | 'RATE_LIMITED' | 'TOKEN_LIMIT' | 'MODEL_NOT_FOUND' | 'NETWORK' | 'UNKNOWN';
 }
 
 export interface CodeFixStreamChunk {
@@ -128,7 +151,8 @@ export interface SetupEnvStreamChunk {
 
 export interface OrganizeFileRequest extends IPCRequestBase {
   folderPath: string;
-  mode?: 'by-type' | 'by-feature' | 'by-language' | 'custom';
+  mode?: 'professional' | 'ai' | 'by-type' | 'by-feature' | 'by-language' | 'custom';
+  instruction?: string;
   customRules?: CustomOrganizationRule[];
   previewOnly?: boolean;
 }
@@ -150,7 +174,12 @@ export interface OrganizeFileResponse extends IPCResponseBase {
   preview?: FileOrganizationPreview[];
   appliedChanges?: FileOrganizationPreview[];
   filesProcessed?: number;
+  directoriesProcessed?: number;
+  operationsProcessed?: number;
   categoriesCreated?: string[];
+  rollbackBatchId?: string;
+  rollbackLogPath?: string;
+  errors?: string[];
   // Extended fields for file organization plan
   redundant_files?: Array<{ path: string; reason: string; action: 'DELETE' | 'ARCHIVE' }>;
   moves?: Array<{ from: string; to: string; reason: string }>;

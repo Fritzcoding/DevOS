@@ -1,144 +1,102 @@
-# AGENTS.md — DevOps Lite
+# DevOps Lite Agent Guide
 
-> Guidance for AI coding agents (Claude Code, Copilot, Cursor, Windsurf, etc.)
-> working inside this repository.
+This file is the global contract for AI coding agents working in this repository.
+Keep it short, durable, and free of feature-specific implementation detail. Load
+the focused files in `.github/instructions/` only when the task needs them.
 
----
+## Project Model
 
-## 1. Project Mental Model
+DevOps Lite is an Electron + React + TypeScript desktop app. It runs as a
+Shimeji-style floating widget and exposes AI-assisted developer tools:
 
-DevOps Lite is an **Electron + React desktop app** that floats on the user's screen
-as a Shimeji-style widget. The UI shell is working. **The three core features are
-wired as stubs** — the goal is to make them fully functional:
+- Code Auto Fixer: repairs clipboard or selected code and shows a diff.
+- Environment Builder: scans a project folder and produces setup steps.
+- File Organizer: scans a folder, proposes file moves, and applies them only
+  after preview and confirmation.
+- Codebase chat and discussion-room flows: inspect local project context and
+  persist user-facing collaboration artifacts.
 
-| Feature | Entry Point | What it must do |
-|---|---|---|
-| Code Auto Fixer | `src/features/code-fixer/code-fixer.ts` | Watch clipboard → detect code → call AI → return diff |
-| Environment Builder | `src/features/environment-builder/environment-builder.ts` | Scan a chosen folder → call AI → return ordered setup steps |
-| File Organizer | `src/features/file-organizer/file-organizer.ts` | Deep-scan folder → call AI → preview + apply restructure plan |
+The Electron main process is rooted at `main.ts`; the preload bridge is rooted at
+`preload.ts`; the renderer app lives under `src/`.
 
-The Shimeji widget, tray, window management, and overlay components **already
-render**. All integration work lives in the feature files and the bridge between
-them and the React UI.
+## Load Order
 
----
+Use these files as needed instead of copying their rules here:
 
-## 2. Repo Layout (only what agents touch)
+- `.github/instructions/architecture.md`: process boundaries, data flow, and key modules.
+- `.github/instructions/conventions.md`: TypeScript, React, IPC, naming, and style rules.
+- `.github/instructions/safety.md`: filesystem, AI, secrets, and autonomous-action guardrails.
+- `.github/instructions/file-organizer.md`: advanced file organizer architecture and safety model.
+- `.github/project-context.md`, `.github/problems.md`, `.github/roadmap.md`, and `.github/handoff.md`:
+  planning and active-work context. Treat these as mutable project notes, not
+  absolute architecture law.
 
-```
-src/
-  core/
-    event-bus.ts          ← pub/sub; use emitAndWait for async flows
-    state-machine.ts      ← guards against concurrent feature runs
-  services/
-    ai/
-      ai-client.ts        ← single gateway to Gemini; always use this
-  features/
-    code-fixer/
-      code-fixer.ts       ← PRIMARY TARGET
-    environment-builder/
-      environment-builder.ts  ← PRIMARY TARGET
-    file-organizer/
-      file-organizer.ts   ← PRIMARY TARGET
-  components/
-    DiffViewer/           ← already built; receives {original, fixed} props
-    SetupStepsOverlay/    ← already built; receives Step[] prop
-    OrganizationPlanOverlay/ ← already built; receives Plan prop
-    DebugPanel/           ← reads event-bus logs; no changes needed
-  electron/
-    main.ts               ← IPC handlers live here; add new ones here only
-    preload.ts            ← exposes safe APIs to renderer
-```
+## Non-Negotiable Rules
 
----
+- Do not bypass `src/services/ai/ai-client.ts` for feature-facing AI calls.
+  `ai-client.ts` delegates to `src/services/ai-routing/AIRouter.ts`.
+- Do not import `electron`, `fs`, `path`, or `child_process` from renderer
+  components. Node and Electron APIs belong in `main.ts` and must be exposed
+  through `preload.ts`.
+- Do not write to user-selected folders without an explicit preview, validation,
+  and confirmation path. Dry-run behavior must be the default for file
+  organization.
+- Do not change unrelated features, generated JavaScript mirrors, documentation,
+  or planning notes unless the task requires it.
+- Do not add dependencies until existing APIs and dependencies have been checked.
+  New dependencies must have a specific reason.
+- Do not commit secrets, API keys, `.env.local`, model credentials, or local
+  machine paths.
+- Preserve user changes in a dirty worktree. Never reset, checkout, or overwrite
+  unrelated files to make a task easier.
 
-## 3. Constraints Every Agent Must Respect
+## Architecture Boundaries
 
-1. **Never bypass `ai-client.ts`** — do not instantiate `GoogleGenerativeAI` or
-   any HTTP client directly in feature files.
-2. **Never write to the user's filesystem without showing a preview first** — the
-   File Organizer must go through `OrganizationPlanOverlay` before any
-   `fs.rename`/`fs.unlink` call.
-3. **All Node.js / Electron APIs** (fs, path, clipboard, dialog) must be called in
-   `electron/main.ts` and exposed via IPC. Never import `electron` or `fs` in
-   renderer-side files.
-4. **State machine first** — call `stateMachine.transition('FEATURE_START')` before
-   any long-running work and `stateMachine.transition('FEATURE_END')` in the
-   finally block.
-5. **Emit progress events** — use `eventBus.emit('progress', {step, total, message})`
-   so DebugPanel and overlays stay in sync.
-6. **TypeScript strict mode is on** — every function must have explicit return types;
-   no `any` unless unavoidable and commented.
-7. **No new dependencies without a comment** explaining why an existing utility
-   couldn't solve it.
+- `main.ts`: Electron lifecycle, windows, tray, IPC handlers, filesystem,
+  process execution, dialogs, and privileged operations.
+- `preload.ts`: context-isolated API exposed to the renderer with narrow methods.
+- `src/App.tsx` and `src/components/`: renderer UI and overlays only.
+- `src/core/`: event bus and state machine.
+- `src/services/ai/` and `src/services/ai-routing/`: AI gateway, local/cloud
+  routing, settings, and Ollama integration.
+- `src/features/`: feature orchestration and domain logic.
+- `src/features/file-organizer/engine/`: validated, reversible file operation logic.
 
----
+## Development Commands
 
-## 4. IPC Channel Naming Convention
+- Install: `npm install`
+- Dev app: `npm run dev`
+- Vite only: `npm run dev:vite`
+- Type check: `npm run type-check`
+- Lint alias: `npm run lint` currently runs `tsc --noEmit`
+- Build: `npm run build`
 
-```
-devops:<feature>:<action>
-```
+There is no dedicated automated test suite in this repository today. For risky
+changes, add focused tests or document the manual verification performed.
 
-Examples:
-- `devops:code-fixer:fix`
-- `devops:env-builder:scan`
-- `devops:file-organizer:preview`
-- `devops:file-organizer:apply`
-- `devops:clipboard:read`
+## Expected Agent Workflow
 
-Register in `electron/main.ts` with `ipcMain.handle(channel, handler)`.
-Expose in `electron/preload.ts` via `contextBridge.exposeInMainWorld`.
+1. Inspect the relevant files before editing.
+2. Identify the smallest safe change that satisfies the request.
+3. Update `main.ts`, `preload.ts`, `src/window.d.ts`, and `src/ipc-types.ts`
+   together when adding or changing IPC.
+4. Keep AI prompts schema-driven and parse defensively.
+5. Preserve preview-first behavior for anything that touches user files.
+6. Run `npm run type-check` after code changes when feasible.
+7. Report any skipped verification and why.
 
----
+## Generated JavaScript Mirrors
 
-## 5. AI Prompt Engineering Rules
+This repo contains TypeScript source files and compiled JavaScript mirrors such
+as `main.js`, `preload.js`, and several `src/**/*.js` files. Prefer editing the
+TypeScript source. Only update JavaScript mirrors when the current workflow or
+user request depends on them being current.
 
-When writing prompts inside feature files:
+## Instruction Hygiene
 
-- **Always include a JSON schema in the prompt** and instruct the model to respond
-  only with valid JSON matching that schema.
-- **Wrap the schema in triple backticks with `json` language tag** inside the
-  prompt string.
-- **Strip markdown fences** before `JSON.parse()` — use the helper:
-  ```ts
-  const clean = raw.replace(/```json|```/g, '').trim();
-  ```
-- **Add a fallback** — if parsing fails, surface the raw string to DebugPanel and
-  return a typed error result rather than throwing.
-- **Temperature** should be set to `0.2` for structured output tasks (fixer,
-  organizer) and `0.5` for descriptive tasks (env builder).
+Keep persistent agent context modular:
 
----
-
-## 6. Testing Checklist Before Committing
-
-- [ ] `npm run type-check` passes with zero errors
-- [ ] `npm run lint` passes with zero warnings
-- [ ] Manual smoke test: launch with `npm run dev`, open each feature, verify overlay
-      renders with real (not mock) data
-- [ ] DebugPanel shows expected events in correct order
-- [ ] State machine does not allow two features to run simultaneously (test by
-      clicking two features rapidly)
-- [ ] File Organizer dry-run does NOT move any files before user confirms
-
----
-
-## 7. PR / Commit Guidelines
-
-- One commit per feature implementation (`feat(code-fixer): implement clipboard watcher and AI repair`)
-- Always reference the failing flow in the PR description: _"Before: clicking fix did nothing. After: diff overlay opens with repaired code."_
-- Include a screenshot or terminal log snippet of the feature working.
-
----
-
-## 8. Common Pitfalls
-
-| Pitfall | Fix |
-|---|---|
-| `require('fs')` in renderer | Move to `main.ts`, expose via IPC |
-| Gemini returns prose instead of JSON | Add explicit JSON-only instruction + schema to prompt |
-| Overlay never opens | Check that `eventBus.emit('overlay:open', ...)` is called after AI resolves |
-| State machine stuck in `RUNNING` | Ensure `finally` block always calls `FEATURE_END` transition |
-| Clipboard watcher fires on non-code text | Add heuristic check (e.g. contains `;` or `{`) before calling AI |
-| `npm run dev` exits code 1 | Run `npm run type-check` first — almost always a TypeScript error |
+- Put global rules here.
+- Put subsystem knowledge in `.github/instructions/*.md`.
+- Put procedural workflows in `.codex/skills/*/SKILL.md`.
+- Avoid duplicating the same rule across files; link to the source of truth.

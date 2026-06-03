@@ -21,6 +21,7 @@ All documentation is now in `.github/` directory:
 - Verifying all feature implementations are functional
 - Ensuring Electron window launches correctly
 - Testing AI API integration
+- Verifying Cloud AI / Local Ollama routing and first-run AI Settings
 
 ## Completed Work
 
@@ -31,6 +32,12 @@ All documentation is now in `.github/` directory:
 - ✅ All UI overlay components (DiffViewer, SetupStepsOverlay, OrganizationPlanOverlay)
 - ✅ TypeScript compilation and development setup
 - ✅ Comprehensive documentation (ARCHITECTURE.md, DEVELOPER_GUIDE.md)
+- ✅ AI Settings flow with Cloud AI and Local Ollama routing
+- ✅ Ollama `qwen2.5-coder:7b` detection and download progress
+- ✅ Installed Ollama model detection in AI Settings
+- ✅ Cancellable Ollama engine downloads with visible percentage
+- ✅ Ollama CLI missing-on-PATH fallback to local HTTP `/api/pull`
+- ✅ Shimeji icon click toggles the active top-level panel; feature menu only opens after AI setup is complete
 
 ## Remaining Tasks
 
@@ -47,10 +54,12 @@ All documentation is now in `.github/` directory:
    - Test environment builder with sample projects
    - Test file organizer on test directory
 
-3. **API Integration Verification**
-   - Confirm Gemini API key is correctly loaded
-   - Test API request/response cycle
-   - Verify error handling for quota/rate limits
+3. **AI Integration Verification**
+   - Test Cloud AI with a saved API key and selected model
+   - Test Local AI with Ollama at `http://localhost:11434`
+   - Verify `qwen2.5-coder:7b` download through **Download Engine**
+   - Verify missing `ollama` CLI falls back to Ollama HTTP pull
+   - Verify error handling for quota/rate limits and local model availability
 
 4. **Production Build**
    - Run `npm run build` once development works
@@ -79,8 +88,16 @@ All documentation is now in `.github/` directory:
    Verify TypeScript compiles without errors.
 
 3. **Verify environment setup**:
-   - Confirm .env.local exists with GEMINI_API_KEY
-   - Check node_modules installation is complete
+  - Configure Cloud AI in AI Settings or run Ollama locally for Local AI
+  - Check node_modules installation is complete
+
+## User Setup Notes
+
+- Cloud AI: paste an API key and choose a model string in AI Settings.
+- Local AI: install/start Ollama and confirm `http://localhost:11434/api/tags` responds.
+- If `'ollama' is not recognized as an internal or external command`, the Ollama server can still be running while the CLI is missing from PATH. DevOps Lite falls back to HTTP pull when possible. To fix the CLI permanently, reinstall/update Ollama, restart the app, and verify `ollama --version`.
+- Shimeji click behavior: click once to open the feature menu, click again to close it.
+- First-run click behavior: before AI setup is complete, clicking Shimeji toggles AI Settings rather than opening the feature menu behind it.
 
 ## Synchronization Notes
 

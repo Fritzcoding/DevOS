@@ -1,6 +1,6 @@
 ﻿# DevOps Lite
 
-⚡ **An intelligent AI-powered DevOps assistant** that floats on your desktop as a Shimeji-style widget. Powered by Google Gemini and built with advanced architectural patterns: event-driven pub/sub messaging, state machines for concurrent safety, and strict process boundaries between renderer and main process.
+⚡ **An intelligent AI-powered DevOps assistant** that floats on your desktop as a Shimeji-style widget. It supports Cloud AI APIs and Local AI through Ollama, and is built with advanced architectural patterns: event-driven pub/sub messaging, state machines for concurrent safety, and strict process boundaries between renderer and main process.
 
 DevOps Lite demonstrates modern software engineering best practices including **event bus patterns**, **state machine concurrency control**, **Electron IPC architecture**, **structured LLM prompting**, and **plugin-style feature extensibility**.
 
@@ -69,12 +69,35 @@ DevOps Lite showcases enterprise-grade software engineering patterns:
 # Install dependencies
 npm install
 
-# Create API key file (get free key at https://ai.google.dev/)
-echo "GEMINI_API_KEY=your-key-here" > .env.local
-
 # Run development server (Vite + Electron)
 npm run dev
 ```
+
+## AI Setup
+
+On first launch, DevOps Lite opens **AI Settings**. Choose one route:
+
+### Cloud AI
+- Paste an API key directly in the setup screen.
+- Pick a provider preset such as OpenAI, DeepSeek, or Anthropic.
+- Edit the model string if needed, for example `gpt-4o-mini` or `deepseek-chat`.
+- Settings are stored locally in `~/.devops-lite/ai-settings.json`.
+
+### Local AI with Ollama
+- Install Ollama from https://ollama.com/download.
+- Start Ollama and confirm the local server is reachable at `http://localhost:11434`.
+- DevOps Lite checks `http://localhost:11434/api/tags` and looks for `qwen2.5-coder:7b`.
+- If the selected model is missing, click **Download Engine**. `qwen2.5-coder:7b` is the default, but you can choose another installed or downloadable Ollama model string.
+- Download progress shows a percentage and can be cancelled.
+
+If you see `'ollama' is not recognized as an internal or external command`, Ollama's desktop/server is running but the `ollama` command-line tool is not available on the PATH for DevOps Lite. The app now falls back to Ollama's local HTTP pull API when possible. To fix the CLI setup permanently, reinstall/update Ollama, enable command-line access, restart your terminal and DevOps Lite, then verify:
+
+```powershell
+ollama --version
+ollama pull qwen2.5-coder:7b
+```
+
+When both Cloud AI and Local AI are configured, the feature menu shows a route toggle so you can switch between them without reopening setup.
 
 ## Documentation
 
@@ -88,6 +111,13 @@ Comprehensive documentation organized in **.github/**:
 | **roadmap.md** | Development phases and timeline |
 | **problems.md** | Known issues and resolution status |
 | **agents.md** | Dev environment tips and workflows |
+
+## Shimeji Interaction
+
+- During first-run AI setup, left-click the Shimeji icon opens/closes the AI configuration panel. It will not open the feature menu behind setup.
+- After AI setup is complete, left-click the Shimeji icon opens the feature menu.
+- Left-click it again while the feature menu is open to close the menu and leave only the Shimeji visible.
+- Right-click the Shimeji icon for tray/settings actions.
 
 ## Development Commands
 

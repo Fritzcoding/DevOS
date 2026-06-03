@@ -1,74 +1,93 @@
 # DevOps Lite - Current Problem Analysis
 
-## Current Problem: Shimeji Interactivity and Jittering
+## Current Problem: AI File Organizer Plan/Apply Mismatch
 
 ### Problem Description
-The Shimeji widget is now clickable, but it still behaves incorrectly. When the mouse hovers or clicks the widget, it jitters and/or the app window appears to move unexpectedly. The feature menu is still not reliably visible in a stable way.
+In the AI File Organizer, the preview said it would move 7 files, but after apply
+the result reported 9 files processed. The user's `.docx`, `.js`, `.html`,
+`.csv`, and `.xlsx` files were not moved as expected. The organizer also created
+folders named `assets`, `docs`, and `.devops-lite-organizer` after the user asked:
+
+> Organize the folder 'sandbox_clutter' professionally. Group files cleanly into
+> standard directories like Documents, Images, Financials, and Code, and rename
+> poorly formatted files into clean snake_case.
 
 ### Observed Behavior
-- Shimeji is no longer reliably interactive; clicks sometimes do not register on the widget.
-- The widget still jitters visually during pointer movement.
-- The feature menu can appear on the far right of the screen instead of anchored near the widget.
-- Feature selection often results in configuration errors (Gemini API not configured, project path not configured), which may be separate from the interactivity bug.
-- A large transparent portion of the Electron window can become effectively unclickable, creating an invisible click barrier.
-- The UI still feels like the active area is not properly aligned with the actual Electron window.
+- Preview move count and apply result count do not match.
+- Apply count includes created directories, so the UI can report more "files"
+  than the preview listed.
+- AI instruction category planning does not cover `.docx`, `.xlsx`, `.csv`,
+  `.html`, or general code files well enough.
+- Requested category names such as `Documents`, `Images`, `Financials`, and
+  `Code` are not preserved; generic lowercase folders such as `assets` and
+  `docs` can be produced instead.
+- Rename intent is ignored or blocked because current move validation prevents
+  filename changes unless rename operations are explicitly produced.
+- `.devops-lite-organizer` is created as rollback metadata, but it is not
+  surfaced clearly as internal recovery state rather than a user content folder.
 
-### Architecture / Implementation Details
-#### Renderer
-- `src/components/Shimeji.tsx` renders the floating widget.
-- The component uses React pointer events to track drag state.
-- The widget now uses a fixed window size and native `window.electronAPI.moveWindow(x, y)` movement.
-- The renderer should not drive visual positioning independently of the native window.
+### Suspected Root Causes
+1. `SafeFileOperationExecutor.apply()` increments `appliedCount` for every
+   operation, including `mkdir`, while the preview displays only `moves.length`.
+2. `main.ts` maps `result.appliedCount` directly to `filesProcessed`.
+3. `buildInstructionCategoryPlan()` only recognizes a narrow set of document,
+   image, and script extensions and does not support financial or code grouping.
+4. Folder naming is hardcoded to `assets`, `assets/images`, `docs`, or
+   `docs/documents` instead of using directories explicitly named by the user.
+5. `buildExplicitInstructionPlan()` rejects rename moves by requiring identical
+   source and destination basenames.
 
-#### Main process
-- `main.ts` creates a frameless, transparent `BrowserWindow` at 128x128 for Shimeji mode.
-- IPC handlers were added for `devops:window:move` only; resize should no longer be used.
-- `preload.ts` exposes `moveWindow` through `window.electronAPI`.
+### Required Fix
+- Separate apply result counts for file operations and directory operations.
+- Return user-facing `filesProcessed` as moved/renamed/archived files only.
+- Expand AI instruction grouping to support `Documents`, `Images`,
+  `Financials`, and `Code`.
+- Support common file extensions:
+  - Documents: `.doc`, `.docx`, `.pdf`, `.txt`, `.md`, `.rtf`, `.odt`
+  - Financials: `.csv`, `.xls`, `.xlsx`, `.ods`, `.tsv`
+  - Code: `.js`, `.jsx`, `.ts`, `.tsx`, `.html`, `.css`, `.json`, `.py`,
+    `.java`, `.go`, `.rs`, `.sh`, `.ps1`, `.bat`
+  - Images: `.png`, `.jpg`, `.jpeg`, `.gif`, `.webp`, `.svg`, `.ico`
+- Implement safe snake_case rename generation when explicitly requested.
+- Keep rollback metadata, but report it separately so it is not confused with
+  user-requested folders.
 
-### Root Cause Hypothesis
-1. **Window-level movement and renderer movement are conflicting**
-   - The renderer updates local position state and also asks the main process to reposition the window.
-   - This may create a feedback loop or unsynchronized position values.
+### Resolution
+- Expanded AI instruction planning so requested categories such as `Documents`,
+  `Images`, `Financials`, and `Code` are honored instead of falling back to
+  generic `assets`/`docs` folder names.
+- Added support for `.docx`, `.xlsx`, `.csv`, `.html`, `.js`, and related
+  document/image/financial/code extensions.
+- Added explicit snake_case rename generation when the instruction asks for
+  clean snake_case names.
+- Collapsed repeated final extensions during cleanup, e.g. `index.html.html`
+  becomes `index.html`.
+- Removed redundant explicit `mkdir` apply operations from the legacy plan
+  adapter because move/rename operations already create parent directories.
+- Split apply reporting into file, directory, and total operation counts, and
+  mapped user-facing `filesProcessed` to file operations only.
+- Updated success messaging to identify `.devops-lite-organizer` as rollback
+  metadata.
 
-2. **Window resizing on menu open is unstable**
-   - Resizing a frameless 64x64 window on hover/click can cause visual jumping.
-   - The rendered menu is still being shown inside a tiny floating window, which is not ideal.
-
-3. **Pointer logic may be too sensitive**
-   - Movement is triggered on small pointer deviations, making it feel jittery.
-   - `pointerMovedRef` and `isDragging` logic can still fire unexpectedly.
-
-4. **UI hover style changes can amplify jitter**
-   - Even after removing hover/active animations, the window itself may still repaint on hover.
-
-### Fixes Tried (and Still Failing)
-- Added IPC support for `moveWindow` and `resizeWindow` in `main.ts` and `preload.ts`.
-- Moved window position from `Shimeji.tsx` to Electron main process.
-- Disabled the wandering animation in `src/components/Shimeji.tsx`.
-- Removed hover and click animation effects from the Shimeji component.
-- Set CSS transition to `none` to eliminate renderer animation jitter.
-- Added explicit `moveWindow` calls during drag and when position changes.
-
-### Why It Still Fails
-- The current architecture still ties the visible Shimeji position to both React state and native window bounds.
-- Resizing the window for the menu is still happening inside the same small frameless window, which is inherently unstable.
-- The Shimeji widget should not rely on DOM positioning inside a tiny window if the actual window is also being moved.
-
-### Recommended Next Step
-- Stop resizing the Shimeji window for the menu.
-- Keep the main Shimeji window at a fixed size (128x128) and render the menu inside that fixed window.
-- Simplify the drag model: the native BrowserWindow should be the only source of truth for position.
-- Apply true click-through behavior to transparent window areas by using `setIgnoreMouseEvents(true, { forward: true })` and setting page background pointer-events to none.
-- Add a stable `dragging` threshold so tiny pointer movements do not trigger window repositioning.
-- Make transparent window areas click-through and keep only the Shimeji widget/menu interactive.
+### Verification
+- `npm.cmd run type-check` passes.
+- `npm.cmd run compile:main` passes.
+- Re-ran `npm.cmd run type-check` after the UI success-message update.
+- Planner test against `C:\Users\Fritz\Downloads\test\sandbox_clutter` generated
+  12 moves into `Financials`, `Documents`, `Images`, and `Code`.
+- Apply test on a temporary copy succeeded with:
+  - preview moves: 12
+  - operations: 12
+  - file operations: 12
+  - directory operations: 0
+  - skipped: 0
 
 ### Current Status
-- [x] Shimeji is clickable.
-- [ ] Jittering remains on hover/click.
-- [ ] Stable menu rendering not achieved.
-- [ ] Drag behavior needs simplification.
-- [ ] Window resize approach should be rethought.
+- [x] Problem recorded.
+- [x] Code fix implemented.
+- [x] Tested against `sandbox_clutter` via a temporary copy.
+- [x] Resolved entry added to `.github/problems.md`.
 
 ---
-Created: May 17, 2026
-Status: INVESTIGATING - FIX INCOMPLETE
+Created: May 27, 2026
+Status: RESOLVED

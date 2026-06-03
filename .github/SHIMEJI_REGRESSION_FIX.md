@@ -161,3 +161,9 @@ All features, IPC handlers, and overlays preserved and functional.
 Date Fixed: May 13, 2026
 Status: Ready for Testing
 Next Step: Run 'npm start' to verify Shimeji appears correctly
+
+## Current AI / Shimeji Notes
+
+- Local AI requires Ollama running at `http://localhost:11434`; DevOps Lite checks `/api/tags` for `qwen2.5-coder:7b`.
+- If download reports `'ollama' is not recognized as an internal or external command`, the Ollama server is running but the CLI is not on PATH for this app process. DevOps Lite falls back to Ollama's HTTP pull API where possible. Permanent user fix: reinstall/update Ollama, restart DevOps Lite, and verify `ollama --version` in a new terminal.
+- Clicking the Shimeji icon toggles the feature menu. Click once to open; click again to close so only the icon remains visible.

@@ -1,10 +1,51 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef, useCallback } from "react";
 import Shimeji from "./components/Shimeji";
 import FeatureMenu from "./components/FeatureMenu";
 import DiffViewer from "./components/overlays/DiffViewer";
 import SetupStepsOverlay from "./components/overlays/SetupStepsOverlay";
 import OrganizationPlanOverlay from "./components/overlays/OrganizationPlanOverlay";
+import PathInputModal from "./components/modals/PathInputModal";
+import HelpModal from "./components/modals/HelpModal";
+import AISettingsModal from "./components/modals/AISettingsModal";
+import CodeFixerAgentOverlay from "./components/overlays/CodeFixerAgentOverlay";
+import FileOrganizerWorkbench from "./components/overlays/FileOrganizerWorkbench";
+import CodebaseChatOverlay from "./components/overlays/CodebaseChatOverlay";
+import DiscussionRoomOverlay from "./components/overlays/DiscussionRoomOverlay";
 import { eventBus } from "./core/event-bus";
+
+type FeatureId = "code-fixer" | "environment" | "organizer" | "chat" | "room" | "help" | "settings";
+type PanelSize = { width: number; height: number };
+
+const MASCOT_WINDOW_SIZE: PanelSize = { width: 96, height: 96 };
+const CONTEXT_MENU_WINDOW_SIZE: PanelSize = { width: 260, height: 260 };
+const MENU_WINDOW_SIZE: PanelSize = { width: 460, height: 640 };
+const DEFAULT_CHAT_PANEL_SIZE: PanelSize = { width: 960, height: 720 };
+const PATH_PANEL_SIZE: PanelSize = { width: 560, height: 520 };
+const CODE_FIXER_PANEL_SIZE: PanelSize = { width: 1220, height: 780 };
+const ORGANIZER_PANEL_SIZE: PanelSize = { width: 760, height: 660 };
+const ENV_PANEL_SIZE: PanelSize = { width: 920, height: 720 };
+const PLAN_PANEL_SIZE: PanelSize = { width: 920, height: 720 };
+const ROOM_PANEL_SIZE: PanelSize = { width: 960, height: 720 };
+const HELP_PANEL_SIZE: PanelSize = { width: 1060, height: 760 };
+const SETTINGS_PANEL_SIZE: PanelSize = { width: 1080, height: 780 };
+const STATUS_PANEL_SIZE: PanelSize = { width: 520, height: 420 };
+const PANEL_SIZE_KEY = "devops-panel-size";
+const LAST_PANEL_KEY = "devops-last-panel";
+
+const loadPanelSize = (): PanelSize => {
+  try {
+    const parsed = JSON.parse(localStorage.getItem(PANEL_SIZE_KEY) || "null");
+    if (typeof parsed?.width === "number" && typeof parsed?.height === "number") {
+      return {
+        width: Math.max(420, Math.min(1600, parsed.width)),
+        height: Math.max(420, Math.min(1000, parsed.height)),
+      };
+    }
+  } catch {
+    // Ignore invalid saved panel geometry.
+  }
+  return DEFAULT_CHAT_PANEL_SIZE;
+};
 
 /**
  * DevOps Lite - Main Application
@@ -13,12 +54,15 @@ import { eventBus } from "./core/event-bus";
 export default function App() {
   const [projectPath, setProjectPath] = useState("");
   const [menuOpen, setMenuOpen] = useState(false);
+  const [shimejiContextOpen, setShimejiContextOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [showPathModal, setShowPathModal] = useState(false);
 
   // Code Fixer State
   const [showDiffViewer, setShowDiffViewer] = useState(false);
   const [codeFixResult, setCodeFixResult] = useState<any>(null);
+  const [showCodeFixerAgent, setShowCodeFixerAgent] = useState(false);
 
   // Environment Builder State
   const [showSetupSteps, setShowSetupSteps] = useState(false);
@@ -27,6 +71,21 @@ export default function App() {
   // File Organizer State
   const [showOrganizationPlan, setShowOrganizationPlan] = useState(false);
   const [organizationPlan, setOrganizationPlan] = useState<any>(null);
+  const [showOrganizerWorkbench, setShowOrganizerWorkbench] = useState(false);
+  const [showCodebaseChat, setShowCodebaseChat] = useState(false);
+  const [hasOpenedCodebaseChat, setHasOpenedCodebaseChat] = useState(false);
+  const [showDiscussionRoom, setShowDiscussionRoom] = useState(false);
+  const [showHelpModal, setShowHelpModal] = useState(false);
+  const [showAISettings, setShowAISettings] = useState(false);
+  const [aiStatus, setAIStatus] = useState<any>(null);
+  const [panelSize, setPanelSize] = useState<PanelSize>(() => loadPanelSize());
+  const [lastPanel, setLastPanel] = useState<FeatureId | null>(() => {
+    const saved = localStorage.getItem(LAST_PANEL_KEY);
+    return saved === "code-fixer" || saved === "organizer" || saved === "chat" || saved === "room" || saved === "help" || saved === "settings"
+      ? saved
+      : null;
+  });
+  const restoredPanelRef = useRef(false);
 
   // Load saved project path on mount
   useEffect(() => {
@@ -34,8 +93,130 @@ export default function App() {
     if (saved) {
       setProjectPath(saved);
       console.log("[App] Loaded project path:", saved);
+      return;
     }
+
+    window.electronAPI?.getCurrentProjectPath?.().then((result) => {
+      if (result?.success && result.path) {
+        saveProjectPath(result.path);
+      }
+    }).catch((error) => {
+      console.debug("[App] Current project path auto-detect skipped:", error);
+    });
   }, []);
+
+  const refreshAIStatus = async () => {
+    try {
+      const result = await window.electronAPI?.getAIStatus?.();
+      if (result?.success) {
+        setAIStatus(result);
+        if (!result.settings?.firstLaunchComplete) {
+          setShowAISettings(true);
+        }
+      }
+    } catch (error) {
+      console.debug("[App] AI status check skipped:", error);
+    }
+  };
+
+  useEffect(() => {
+    refreshAIStatus();
+  }, []);
+
+  useEffect(() => {
+    if (restoredPanelRef.current || !projectPath || !lastPanel) return;
+    restoredPanelRef.current = true;
+    if (lastPanel === "chat") {
+      setHasOpenedCodebaseChat(true);
+      setShowCodebaseChat(true);
+    } else if (lastPanel === "room") {
+      setShowDiscussionRoom(true);
+    } else if (lastPanel === "organizer") {
+      setShowOrganizerWorkbench(true);
+    } else if (lastPanel === "code-fixer") {
+      setShowCodeFixerAgent(true);
+    } else if (lastPanel === "help") {
+      setShowHelpModal(true);
+    } else if (lastPanel === "settings") {
+      setShowAISettings(true);
+    }
+  }, [projectPath, lastPanel]);
+
+  useEffect(() => {
+    if (showAISettings) {
+      setMenuOpen(false);
+    }
+  }, [showAISettings]);
+
+  const anyPanelOpen =
+    showCodeFixerAgent ||
+    showOrganizerWorkbench ||
+    showCodebaseChat ||
+    showDiscussionRoom ||
+    showHelpModal ||
+    showAISettings ||
+    showPathModal ||
+    showDiffViewer ||
+    showSetupSteps ||
+    showOrganizationPlan ||
+    isLoading ||
+    Boolean(error);
+
+  const activeWindowSize = () => {
+    if (showCodebaseChat) return panelSize;
+    if (showCodeFixerAgent) return CODE_FIXER_PANEL_SIZE;
+    if (showAISettings) return SETTINGS_PANEL_SIZE;
+    if (showHelpModal) return HELP_PANEL_SIZE;
+    if (showDiscussionRoom) return ROOM_PANEL_SIZE;
+    if (showOrganizerWorkbench) return ORGANIZER_PANEL_SIZE;
+    if (showSetupSteps) return ENV_PANEL_SIZE;
+    if (showOrganizationPlan || showDiffViewer) return PLAN_PANEL_SIZE;
+    if (showPathModal) return PATH_PANEL_SIZE;
+    if (isLoading || error) return STATUS_PANEL_SIZE;
+    return MASCOT_WINDOW_SIZE;
+  };
+
+  useEffect(() => {
+    const targetSize = anyPanelOpen
+      ? activeWindowSize()
+      : menuOpen
+        ? MENU_WINDOW_SIZE
+        : shimejiContextOpen
+          ? CONTEXT_MENU_WINDOW_SIZE
+          : MASCOT_WINDOW_SIZE;
+    window.electronAPI?.resizeWindow?.(targetSize.width, targetSize.height);
+  }, [
+    anyPanelOpen,
+    menuOpen,
+    shimejiContextOpen,
+    panelSize,
+    showCodebaseChat,
+    showCodeFixerAgent,
+    showAISettings,
+    showHelpModal,
+    showDiscussionRoom,
+    showOrganizerWorkbench,
+    showSetupSteps,
+    showOrganizationPlan,
+    showDiffViewer,
+    showPathModal,
+    isLoading,
+    error,
+  ]);
+
+  const savePanelSize = useCallback((size: PanelSize) => {
+    const next = {
+      width: Math.max(420, Math.min(1600, Math.round(size.width))),
+      height: Math.max(420, Math.min(1000, Math.round(size.height))),
+    };
+    setPanelSize(next);
+    localStorage.setItem(PANEL_SIZE_KEY, JSON.stringify(next));
+  }, []);
+
+  const rememberPanel = (panel: FeatureId) => {
+    setLastPanel(panel);
+    localStorage.setItem(LAST_PANEL_KEY, panel);
+  };
 
   useEffect(() => {
     let lastIgnored: boolean | null = null;
@@ -66,17 +247,35 @@ export default function App() {
   }, []);
 
   // Handle project path selection
+  const saveProjectPath = (path: string) => {
+    setProjectPath(path);
+    localStorage.setItem("devops-project-path", path);
+    console.log("[App] Project path selected:", path);
+  };
+
   const handleSelectPath = async () => {
     try {
       const result = await window.electronAPI?.selectProjectPath?.();
       if (result?.success && result?.path) {
-        setProjectPath(result.path);
-        localStorage.setItem("devops-project-path", result.path);
-        console.log("[App] Project path selected:", result.path);
+        saveProjectPath(result.path);
       }
     } catch (error) {
       console.error("[App] Failed to select path:", error);
       setError("Failed to select project path");
+    }
+  };
+
+  const handleUseCurrentProjectPath = async () => {
+    try {
+      const result = await window.electronAPI?.getCurrentProjectPath?.();
+      if (result?.success && result.path) {
+        saveProjectPath(result.path);
+        return;
+      }
+      setError(result?.error || "Could not detect the current project path");
+    } catch (error) {
+      console.error("[App] Failed to detect current path:", error);
+      setError("Could not detect the current project path");
     }
   };
 
@@ -85,42 +284,9 @@ export default function App() {
   // ============================================
 
   const handleCodeFixer = async () => {
-    setIsLoading(true);
-    setError(null);
-    try {
-      // For now, we'll assume clipboard content and use a sample
-      // In a real app, we'd need to read from system clipboard
-      const code = `
-function add(a, b) {
-  return a + b
-}  // Missing semicolon and brace
-const result = add(5 3);
-`;
-      
-      // Fix the code
-      const result = await window.electronAPI?.fixCode?.(code, 'javascript', '');
-      if (!result || result?.status === 'error') {
-        setError(result?.error || 'Failed to fix code');
-        setIsLoading(false);
-        return;
-      }
-
-      setCodeFixResult({
-        original: code,
-        fixed: result?.fixed || code,
-        explanation: result?.explanation || 'Code fixed',
-        language: 'javascript',
-        confidence: 0.8,
-      });
-      setShowDiffViewer(true);
-    } catch (err) {
-      const message = err instanceof Error ? err.message : 'Unknown error';
-      setError(message);
-      console.error("[App] Code fixer error:", err);
-    } finally {
-      setIsLoading(false);
-      setMenuOpen(false);
-    }
+    rememberPanel("code-fixer");
+    setShowCodeFixerAgent(true);
+    setMenuOpen(false);
   };
 
   const handleEnvironmentBuilder = async () => {
@@ -160,42 +326,16 @@ const result = add(5 3);
   };
 
   const handleFileOrganizer = async () => {
-    setIsLoading(true);
-    setError(null);
-    try {
-      if (!projectPath) {
-        setError("Please select a project path first");
-        setIsLoading(false);
-        return;
-      }
-
-      // Organize folder
-      const result = await window.electronAPI?.organizeFolder?.(projectPath);
-      if (result?.status === 'error') {
-        setError(result?.error || 'Failed to organize files');
-        setIsLoading(false);
-        return;
-      }
-
-      setOrganizationPlan({
-        redundant_files: result?.redundant_files || [],
-        moves: result?.moves || [],
-        new_dirs_to_create: result?.new_dirs_to_create || [],
-        summary: result?.summary || 'File organization plan ready',
-        risk_level: result?.risk_level || 'low',
-      });
-      setShowOrganizationPlan(true);
-    } catch (err) {
-      const message = err instanceof Error ? err.message : 'Unknown error';
-      setError(message);
-      console.error("[App] File organizer error:", err);
-    } finally {
-      setIsLoading(false);
-      setMenuOpen(false);
+    if (!projectPath) {
+      setError("Please select a project path first");
+      return;
     }
+    rememberPanel("organizer");
+    setShowOrganizerWorkbench(true);
+    setMenuOpen(false);
   };
 
-  const handleFeatureSelect = (feature: string) => {
+  const handleFeatureSelect = (feature: FeatureId) => {
     console.log("[App] Feature selected:", feature);
     
     switch (feature) {
@@ -208,12 +348,29 @@ const result = add(5 3);
       case 'organizer':
         handleFileOrganizer();
         break;
+      case 'chat':
+        if (!projectPath) setError("Please select a project path first");
+        else {
+          rememberPanel("chat");
+          setHasOpenedCodebaseChat(true);
+          setShowCodebaseChat(true);
+        }
+        break;
+      case 'room':
+        if (!projectPath) setError("Please select a project path first");
+        else {
+          rememberPanel("room");
+          setShowDiscussionRoom(true);
+        }
+        break;
       case 'help':
-        console.log("[App] Help requested");
+        rememberPanel("help");
+        setShowHelpModal(true);
         break;
       case 'settings':
-        console.log("[App] Settings requested - not implemented yet");
-        setError("Settings are not implemented yet.");
+        rememberPanel("settings");
+        setMenuOpen(false);
+        setShowAISettings(true);
         break;
       default:
         console.warn("[App] Unknown feature:", feature);
@@ -232,7 +389,7 @@ const result = add(5 3);
         setError(result?.error || 'Failed to apply organization');
         return false;
       }
-      alert(`Successfully organized! Moved ${result?.filesProcessed || 0} files.`);
+      alert(`Successfully organized! Moved ${result?.filesProcessed || 0} files. Rollback metadata was saved in .devops-lite-organizer.`);
       setShowOrganizationPlan(false);
       return true;
     } catch (err) {
@@ -242,15 +399,62 @@ const result = add(5 3);
     }
   };
 
+  const closeVisiblePanels = () => {
+    setMenuOpen(false);
+    setShowPathModal(false);
+    setShowCodeFixerAgent(false);
+    setShowOrganizerWorkbench(false);
+    setShowCodebaseChat(false);
+    setShowDiscussionRoom(false);
+    setShowHelpModal(false);
+    setShowAISettings(false);
+    setShowDiffViewer(false);
+    setShowSetupSteps(false);
+    setShowOrganizationPlan(false);
+    setError(null);
+  };
+
+  const handleBackToMenu = () => {
+    closeVisiblePanels();
+    setMenuOpen(true);
+  };
+
+  const handleShimejiClick = () => {
+    if (anyPanelOpen || menuOpen) {
+      closeVisiblePanels();
+      return;
+    }
+
+    if (showAISettings) {
+      setShowAISettings(false);
+      setMenuOpen(false);
+      return;
+    }
+
+    if (!aiStatus?.settings?.firstLaunchComplete) {
+      setShowAISettings(true);
+      setMenuOpen(false);
+      return;
+    }
+
+    if (!menuOpen && !anyPanelOpen && lastPanel) {
+      handleFeatureSelect(lastPanel);
+      return;
+    }
+
+    setMenuOpen((open) => !open);
+  };
+
   return (
     <div>
       {/* Shimeji Widget */}
       <Shimeji
-        onFeatureSelect={() => setMenuOpen(true)}
+        onFeatureSelect={handleFeatureSelect}
         onMinimizeToTray={() => {
           window.electronAPI?.minimizeToTray?.();
         }}
-        onShowMenu={() => setMenuOpen(true)}
+        onShowMenu={handleShimejiClick}
+        onContextMenuChange={setShimejiContextOpen}
         currentProjectPath={projectPath}
       />
 
@@ -261,8 +465,85 @@ const result = add(5 3);
           onClose={() => setMenuOpen(false)}
           onFeatureSelect={handleFeatureSelect}
           currentProjectPath={projectPath}
-          onChangeProjectPath={handleSelectPath}
+          onChangeProjectPath={() => setShowPathModal(true)}
           onRefreshProjectPath={handleSelectPath}
+          onUseCurrentProjectPath={handleUseCurrentProjectPath}
+          aiStatus={aiStatus}
+          onSetActiveAIBackend={async (backend) => {
+            await window.electronAPI?.setActiveAIBackend?.(backend);
+            await refreshAIStatus();
+          }}
+        />
+      )}
+
+      <PathInputModal
+        isOpen={showPathModal}
+        onClose={() => setShowPathModal(false)}
+        onBack={handleBackToMenu}
+        onSelectPath={async (path) => saveProjectPath(path)}
+        title="Project Path"
+        description="Choose a project folder for Environment and File Organizer"
+      />
+
+      {showCodeFixerAgent && (
+        <CodeFixerAgentOverlay
+          projectPath={projectPath}
+          onClose={() => setShowCodeFixerAgent(false)}
+          onBack={handleBackToMenu}
+        />
+      )}
+
+      {showOrganizerWorkbench && (
+        <FileOrganizerWorkbench
+          projectPath={projectPath}
+          onClose={() => setShowOrganizerWorkbench(false)}
+          onBack={handleBackToMenu}
+          onPlanReady={(plan) => {
+            setOrganizationPlan({
+              redundant_files: plan?.redundant_files || [],
+              moves: plan?.moves || [],
+              new_dirs_to_create: plan?.new_dirs_to_create || [],
+              summary: plan?.summary || "File organization plan ready",
+              risk_level: plan?.risk_level || "low",
+              explainability: plan?.explainability,
+              semantic_graph: plan?.semantic_graph,
+              refactor_plan: plan?.refactor_plan,
+            });
+            setShowOrganizerWorkbench(false);
+            setShowOrganizationPlan(true);
+          }}
+        />
+      )}
+
+      {hasOpenedCodebaseChat && (
+        <CodebaseChatOverlay
+          projectPath={projectPath}
+          visible={showCodebaseChat}
+          panelSize={panelSize}
+          onPanelSizeChange={savePanelSize}
+          onClose={() => setShowCodebaseChat(false)}
+          onBack={handleBackToMenu}
+        />
+      )}
+
+      {showDiscussionRoom && (
+        <DiscussionRoomOverlay
+          projectPath={projectPath}
+          onClose={() => setShowDiscussionRoom(false)}
+          onBack={handleBackToMenu}
+        />
+      )}
+
+      {showHelpModal && (
+        <HelpModal onClose={() => setShowHelpModal(false)} onBack={handleBackToMenu} />
+      )}
+
+      {showAISettings && (
+        <AISettingsModal
+          firstRun={!aiStatus?.settings?.firstLaunchComplete}
+          onClose={() => setShowAISettings(false)}
+          onSaved={refreshAIStatus}
+          onBack={handleBackToMenu}
         />
       )}
 
@@ -314,6 +595,7 @@ const result = add(5 3);
             env_vars_needed={setupStepsData.env_vars_needed}
             estimated_minutes={setupStepsData.estimated_minutes}
             onClose={() => setShowSetupSteps(false)}
+            onBack={handleBackToMenu}
           />
         </div>
       )}
@@ -327,8 +609,10 @@ const result = add(5 3);
             new_dirs_to_create={organizationPlan.new_dirs_to_create}
             summary={organizationPlan.summary}
             risk_level={organizationPlan.risk_level}
+            explainability={organizationPlan.explainability}
             onApply={handleApplyOrganization}
             onCancel={() => setShowOrganizationPlan(false)}
+            onBack={handleBackToMenu}
           />
         </div>
       )}

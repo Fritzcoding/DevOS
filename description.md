@@ -12,9 +12,10 @@ DevOps Lite is a desktop AI-powered developer assistant that floats on your scre
 - **Vite**: Fast build tool and development server
 
 ### AI & Machine Learning
-- **Google Gemini AI (Gemini 1.5 Flash)**: Primary AI model for natural language processing
-- **Google Generative AI SDK**: Official SDK for Gemini API integration
-- **OpenAI SDK**: Alternative AI provider support (optional)
+- **Cloud API routing**: OpenAI-compatible REST APIs such as OpenAI and DeepSeek, plus Anthropic-style message endpoints
+- **Local AI routing**: Ollama running at `http://localhost:11434`
+- **Default local model**: `qwen2.5-coder:7b`
+- **Persistent AI settings**: User choices are stored in `~/.devops-lite/ai-settings.json`
 
 ### UI & Styling
 - **Tailwind CSS**: Utility-first CSS framework for responsive design
@@ -52,7 +53,18 @@ Modern development workflows involve repetitive tasks like debugging code, setti
 - Provide a distraction-free, floating interface that doesn't interrupt workflow
 
 ## Implementation Overview
-The application uses Electron to create a frameless, always-on-top window that behaves like a desktop mascot. The React frontend provides a modern, animated interface with smooth transitions. AI integration through Gemini enables intelligent code analysis and generation. The architecture follows a clean separation between main process (system operations) and renderer process (UI), with IPC communication for secure inter-process data exchange.
+The application uses Electron to create a frameless, always-on-top window that behaves like a desktop mascot. The React frontend provides a modern interface with setup flows for Cloud AI or Local AI. AI requests are routed through a central router so code fixing, chat, and project tools can switch between a saved cloud API key and a downloaded Ollama model. The architecture follows a clean separation between main process (system operations) and renderer process (UI), with IPC communication for secure inter-process data exchange.
 
-The three core features are implemented as modular services that can be triggered via the floating UI or system tray integration, making the assistant accessible without disrupting the development environment.</content>
-<parameter name="filePath">c:\Users\Fritz\Downloads\devops-lite\description.md
+The three core features are implemented as modular services that can be triggered via the floating UI or system tray integration, making the assistant accessible without disrupting the development environment.
+
+## Local Ollama Setup Note
+For Local AI, users must install and run Ollama first. The app checks the Ollama server at `http://localhost:11434/api/tags`. If `qwen2.5-coder:7b` is missing, the app can download it.
+
+If the download reports `'ollama' is not recognized as an internal or external command`, the Ollama server is running but the `ollama` CLI is not available on the PATH for this app process. The app falls back to Ollama's HTTP pull API when possible. To fix the CLI permanently, install or update Ollama from https://ollama.com/download, restart DevOps Lite, and verify `ollama --version` in a new terminal.
+
+The local setup UI lists Ollama models already installed on the device. `qwen2.5-coder:7b` is the default model, but users can choose another model string. Engine downloads show percentage progress and include a cancel action.
+
+## Shimeji Menu Behavior
+Left-clicking the Shimeji icon toggles the feature menu. If the menu is open, clicking the icon closes it so only the Shimeji remains visible.
+
+During first-run AI setup, the Shimeji icon toggles the AI configuration panel instead of opening the feature menu behind it. The feature menu becomes available after AI setup is complete.

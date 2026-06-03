@@ -4,7 +4,7 @@
  */
 
 import React, { useState } from 'react';
-import { AlertTriangle, Check, ChevronDown, ChevronUp, X } from 'lucide-react';
+import { AlertTriangle, ArrowLeft, Check, ChevronDown, ChevronUp, X } from 'lucide-react';
 
 interface RedundantFile {
   path: string;
@@ -24,8 +24,16 @@ interface OrganizationPlanProps {
   new_dirs_to_create: string[];
   summary: string;
   risk_level: 'low' | 'medium' | 'high';
+  explainability?: {
+    architecture_summary?: string;
+    detected_domains?: string[];
+    coupling_hotspots?: string[];
+    violations?: Array<{ rule: string; from: string; to: string; severity: 'low' | 'medium' | 'high'; reason: string }>;
+    confidence_overview?: string;
+  };
   onApply?: () => Promise<boolean>;
   onCancel?: () => void;
+  onBack?: () => void;
 }
 
 const OrganizationPlanOverlay: React.FC<OrganizationPlanProps> = ({
@@ -34,8 +42,10 @@ const OrganizationPlanOverlay: React.FC<OrganizationPlanProps> = ({
   new_dirs_to_create,
   summary,
   risk_level,
+  explainability,
   onApply,
   onCancel,
+  onBack,
 }) => {
   const [expandedSections, setExpandedSections] = useState({
     redundant: true,
@@ -79,13 +89,25 @@ const OrganizationPlanOverlay: React.FC<OrganizationPlanProps> = ({
             <h2 className="text-xl font-bold">Organization Plan</h2>
             <p className="text-sm opacity-90 mt-1">{summary}</p>
           </div>
-          <button
-            onClick={onCancel}
-            className="hover:bg-white hover:bg-opacity-20 p-2 rounded transition"
-            title="Close"
-          >
-            <X className="w-5 h-5" />
-          </button>
+          <div className="flex items-center gap-2">
+            {onBack && (
+              <button
+                onClick={onBack}
+                className="flex items-center gap-2 rounded px-3 py-2 text-sm font-semibold hover:bg-white hover:bg-opacity-20 transition"
+                title="Back to menu"
+              >
+                <ArrowLeft className="w-4 h-4" />
+                Back
+              </button>
+            )}
+            <button
+              onClick={onCancel}
+              className="hover:bg-white hover:bg-opacity-20 p-2 rounded transition"
+              title="Close"
+            >
+              <X className="w-5 h-5" />
+            </button>
+          </div>
         </div>
 
         {/* Content */}
@@ -187,11 +209,36 @@ const OrganizationPlanOverlay: React.FC<OrganizationPlanProps> = ({
             )}
           </div>
 
+          {explainability && (
+            <div className="mb-3 rounded-lg border border-slate-200 bg-slate-50 p-3">
+              <div className="text-sm font-semibold text-slate-700">Architecture Explainability</div>
+              <div className="mt-1 text-xs text-slate-600">{explainability.architecture_summary}</div>
+              {explainability.confidence_overview && (
+                <div className="mt-2 text-xs text-slate-700">{explainability.confidence_overview}</div>
+              )}
+              {!!explainability.detected_domains?.length && (
+                <div className="mt-2 text-xs text-slate-700">Domains: {explainability.detected_domains.join(', ')}</div>
+              )}
+              {!!explainability.coupling_hotspots?.length && (
+                <div className="mt-1 text-xs text-slate-700">Hotspots: {explainability.coupling_hotspots.slice(0, 5).join(', ')}</div>
+              )}
+              {!!explainability.violations?.length && (
+                <div className="mt-2 space-y-1">
+                  {explainability.violations.slice(0, 8).map((violation, idx) => (
+                    <div key={idx} className="rounded border border-amber-200 bg-amber-50 p-2 text-xs text-amber-800">
+                      {violation.rule}: {violation.from} {'->'} {violation.to}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+
           {/* Result Message */}
           {result === 'success' && (
             <div className="bg-green-50 border border-green-300 text-green-700 p-3 rounded-lg flex items-center gap-2">
               <Check className="w-5 h-5" />
-              <div>✓ Organization completed successfully. Deleted files are in .shimeji-trash (safe to remove later).</div>
+              <div>✓ Organization completed successfully. Rollback metadata is saved in .devops-lite-organizer.</div>
             </div>
           )}
           {result === 'error' && (

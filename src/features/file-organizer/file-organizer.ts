@@ -4,7 +4,7 @@
  * Preview-before-apply pattern with .shimeji-trash safety
  */
 
-import { readdirSync, statSync, renameSync, mkdirSync, copyFileSync, unlinkSync } from 'fs';
+import { readdirSync, statSync, renameSync, mkdirSync, copyFileSync, unlinkSync, existsSync } from 'fs';
 import { join, relative, dirname } from 'path';
 import { eventBus } from '../../core/event-bus';
 import { stateMachine } from '../../core/state-machine';
@@ -224,6 +224,27 @@ class FileOrganizerFeature {
     };
 
     try {
+      const resolveUniqueDestination = (destPath: string): string => {
+        if (!existsSync(destPath)) {
+          return destPath;
+        }
+
+        const extIndex = destPath.lastIndexOf('.');
+        const hasExt = extIndex > destPath.lastIndexOf('/');
+        const base = hasExt ? destPath.slice(0, extIndex) : destPath;
+        const ext = hasExt ? destPath.slice(extIndex) : '';
+        const timestamp = Date.now();
+        let counter = 1;
+
+        while (true) {
+          const candidate = `${base}_${timestamp}_${counter}${ext}`;
+          if (!existsSync(candidate)) {
+            return candidate;
+          }
+          counter++;
+        }
+      };
+
       // Ensure trash directory exists
       const trashDir = join(rootDir, this.TRASH_DIR);
       mkdirSync(trashDir, { recursive: true });
@@ -239,24 +260,35 @@ class FileOrganizerFeature {
       // Step 2: Move files
       log(`🔄 Moving ${plan.moves.length} files...`);
       for (const move of plan.moves) {
-        const fromPath = join(rootDir, move.from);
-        const toPath = join(rootDir, move.to);
-
-        mkdirSync(dirname(toPath), { recursive: true });
-        renameSync(fromPath, toPath);
-        log(`  ✓ ${move.from} → ${move.to}`);
+        try {
+          const fromPath = join(rootDir, move.from);
+          const desiredPath = join(rootDir, move.to);
+          const finalPath = resolveUniqueDestination(desiredPath);
+          mkdirSync(dirname(finalPath), { recursive: true });
+          renameSync(fromPath, finalPath);
+          log(`  ✓ ${move.from} → ${relative(rootDir, finalPath)}`);
+        } catch (error) {
+          const message = error instanceof Error ? error.message : String(error);
+          log(`  ⚠️ Skipped move ${move.from}: ${message}`);
+        }
       }
 
       // Step 3: Move redundant files to trash (safer than delete)
       log(`🗑️ Moving ${plan.redundant_files.length} files to trash...`);
       for (const file of plan.redundant_files) {
-        const filePath = join(rootDir, file.path);
-        const trashPath = join(trashDir, relative(rootDir, filePath));
+        try {
+          const filePath = join(rootDir, file.path);
+          const desiredTrashPath = join(trashDir, relative(rootDir, filePath));
+          const finalTrashPath = resolveUniqueDestination(desiredTrashPath);
 
-        mkdirSync(dirname(trashPath), { recursive: true });
-        copyFileSync(filePath, trashPath);
-        unlinkSync(filePath);
-        log(`  ✓ Trashed: ${file.path}`);
+          mkdirSync(dirname(finalTrashPath), { recursive: true });
+          copyFileSync(filePath, finalTrashPath);
+          unlinkSync(filePath);
+          log(`  ✓ Trashed: ${file.path}`);
+        } catch (error) {
+          const message = error instanceof Error ? error.message : String(error);
+          log(`  ⚠️ Skipped archive ${file.path}: ${message}`);
+        }
       }
 
       log(`✅ Organization complete`);

@@ -3,8 +3,8 @@
 ## Overall Status
 - **Application State**: Runs but has UI and functionality issues
 - **Total Open Issues**: 6
-- **Total Resolved**: 0
-- **Last Updated**: 2026-05-14
+- **Total Resolved**: 3
+- **Last Updated**: 2026-05-26
 
 ---
 
@@ -275,7 +275,186 @@ Example:
 
 ## Resolved Issues
 
-(None yet - problems waiting to be fixed)
+### Problem 13: Code Fixer Review Was Too Cramped
+
+**Status**: ✅ RESOLVED (2026-05-26)
+**Severity**: Medium
+**Impact**: Code review UX
+
+#### Problem
+Code Fixer displayed setup controls and generated changes in the same cramped panel. Codebase-scope fixes with multiple files were hard to inspect because each change was stacked inline.
+
+#### Solution
+- Code Fixer now has separate **Setup** and **Review** tabs.
+- After a fix completes, the UI automatically opens the Review tab.
+- Review mode shows changed files in a left sidebar.
+- Selecting a file shows a whole-file before/after preview plus the individual proposed replacements.
+
+### Problem 12: Shared Panel Size Caused Environment Builder Window Growth
+
+**Status**: ✅ RESOLVED (2026-05-26)
+**Severity**: High
+**Impact**: Shimeji window sizing / UX
+
+#### Problem
+All panels reused one mutable `panelSize`. Chat resizing and observer-driven measurements could change that shared size, then unrelated features such as Environment Builder inherited it. Dragging the Shimeji while a panel was open could make the native transparent window feel like it was growing rapidly.
+
+#### Root Cause
+The app treated every overlay as if it should use the same manually resized panel dimensions. This coupled unrelated features and made window size changes propagate farther than intended.
+
+#### Solution
+- Replaced generic panel sizing with fixed native window sizes per feature.
+- Kept manual resize only for Codebase Chat.
+- Removed chat's automatic `ResizeObserver` panel-size feedback loop.
+- Environment Builder now uses a stable feature-specific window size.
+
+### Problem 8: Ollama Server Running but `ollama pull` Fails on Windows
+
+**Status**: ✅ RESOLVED (2026-05-23)
+**Severity**: Medium
+**Impact**: Local AI setup
+
+#### Problem
+The Local AI setup screen could detect Ollama at `http://localhost:11434`, but clicking **Download Engine** failed with:
+
+```text
+'ollama' is not recognized as an internal or external command, operable program or batch file.
+```
+
+#### Root Cause
+Ollama's local HTTP server can run even when the `ollama` command-line executable is not available on PATH for the Electron app process. This commonly happens on Windows after installation until the terminal/app is restarted, or when command-line access was not added correctly.
+
+#### Solution
+- `OllamaClient.pullModel` still tries `ollama pull qwen2.5-coder:7b` first.
+- If the CLI is missing, it falls back to Ollama's local HTTP `/api/pull` streaming endpoint.
+- The AI Settings UI now explains that the CLI may be missing from PATH.
+
+#### User Fix
+Install or update Ollama from https://ollama.com/download, restart DevOps Lite, open a new terminal, and verify:
+
+```powershell
+ollama --version
+ollama pull qwen2.5-coder:7b
+```
+
+### Problem 9: Shimeji Click Only Opened Feature Menu
+
+**Status**: ✅ RESOLVED (2026-05-23)
+**Severity**: Low
+**Impact**: UX
+
+#### Problem
+Clicking the Shimeji icon opened the feature menu, but clicking the icon again did not close the menu.
+
+#### Solution
+The Shimeji click handler now toggles the feature menu open/closed. When the menu is open, clicking the icon closes it and leaves only the Shimeji visible.
+
+### Problem 10: First-Run AI Setup Allowed Feature Menu Behind Modal
+
+**Status**: ✅ RESOLVED (2026-05-24)
+**Severity**: Medium
+**Impact**: First-run UX
+
+#### Problem
+On initial run, AI configuration was visible, but clicking the Shimeji icon opened the feature menu behind the AI setup panel.
+
+#### Solution
+The Shimeji click handler now controls the current top-level panel:
+- Before AI setup is complete, clicking Shimeji toggles the AI configuration panel.
+- The feature menu is suppressed while AI configuration is open or incomplete.
+- After AI setup is complete, clicking Shimeji toggles the feature menu.
+
+### Problem 11: Ollama Model Download Needed Progress, Cancel, and Model Detection
+
+**Status**: ✅ RESOLVED (2026-05-24)
+**Severity**: Medium
+**Impact**: Local AI setup
+
+#### Problem
+Users needed to see real download percentage, cancel a running engine download, and select from local models already present on the device.
+
+#### Solution
+- AI Settings now displays detected Ollama models from `/api/tags`.
+- `qwen2.5-coder:7b` remains the default local model, but users can choose another model string.
+- Download Engine shows percentage progress.
+- Active downloads can be cancelled through IPC.
+
+### Problem 7: Shimeji Interactivity Jitter and Invisible Click Barrier
+
+**Status**: ✅ RESOLVED (2026-05-21)
+**Severity**: High
+**Impact**: UX / Core Interaction
+
+#### Problem
+The Shimeji widget could be clicked, but hover and pointer movement caused visible jitter. The feature menu did not stay anchored near the widget, and transparent parts of the Electron window could block clicks to other apps.
+
+#### Description
+- Clicking sometimes failed to open the feature menu.
+- Dragging moved both renderer state and native Electron window bounds, which made the widget feel unstable.
+- The feature menu could appear far away from the Shimeji instead of beside it.
+- The transparent Electron window could behave like an invisible click barrier.
+
+#### Root Cause
+The renderer and Electron main process both acted like sources of truth for position. The renderer kept local visual position state while also asking the main process to move the native `BrowserWindow`. The menu also relied on fixed screen placement instead of stable placement inside the Shimeji canvas.
+
+#### Why It Failed
+The previous implementation mixed DOM movement, native window movement, hover/click animations, and window resizing behavior. Those independent behaviors raced each other during pointer events, so small cursor movement could trigger repositioning or repainting at the wrong time.
+
+#### Solution
+- Removed renderer-owned widget position state and made the native `BrowserWindow` the only source of truth.
+- Added a drag threshold before moving the native window.
+- Clamped native movement in the main process using Electron `screen` work area bounds.
+- Kept the Shimeji canvas at a stable fixed size and anchored the feature menu near the widget.
+- Added dynamic `setIgnoreMouseEvents(true, { forward: true })` behavior so only marked interactive DOM elements capture clicks.
+- Verified with `npm.cmd run type-check`, `npm.cmd run compile:main`, `npm.cmd run build:web`, feature smoke tests, and an Electron boot smoke test.
+
+---
+
+### Problem 14: AI File Organizer Count Mismatch and Missing User Categories
+
+**Status**: ✅ RESOLVED (2026-05-27)
+**Severity**: High
+**Impact**: File Organizer correctness / user trust
+
+#### Problem
+The AI File Organizer preview could say it would move 7 files, but apply then
+reported 9 files processed because directory creation operations were counted as
+files. For the instruction to organize `sandbox_clutter` into `Documents`,
+`Images`, `Financials`, and `Code` with snake_case names, several common files
+such as `.docx`, `.js`, `.html`, `.csv`, and `.xlsx` were not moved as expected.
+The planner also created generic folders like `assets` and `docs` instead of
+honoring the user-named categories.
+
+#### Root Cause
+- Apply reporting used total applied operations as `filesProcessed`, including
+  explicit `mkdir` operations.
+- The legacy plan adapter created redundant `mkdir` operations even though file
+  move operations already create parent folders.
+- AI instruction category planning only recognized a narrow set of extensions
+  and hardcoded generic target folders.
+- Rename intent was not translated into explicit rename operations.
+
+#### Solution
+- User-facing `filesProcessed` now counts file operations only.
+- Apply responses also expose directory and total operation counts separately.
+- Redundant explicit `mkdir` operations were removed from the adapter.
+- AI instruction grouping now supports requested `Documents`, `Images`,
+  `Financials`, and `Code` categories.
+- Added extension coverage for office documents, spreadsheets, CSV/TSV, images,
+  HTML, JavaScript, TypeScript, scripts, and common source files.
+- Added safe snake_case filename normalization and duplicate final-extension
+  cleanup.
+- Updated success messaging so `.devops-lite-organizer` is described as rollback
+  metadata.
+
+#### Verification
+- `npm.cmd run type-check`
+- `npm.cmd run compile:main`
+- Re-ran `npm.cmd run type-check` after the UI success-message update.
+- Generated a plan for `C:\Users\Fritz\Downloads\test\sandbox_clutter` with 12
+  expected moves.
+- Applied the plan to a temporary copy and verified 12 preview moves, 12 apply
+  operations, 12 file operations, 0 directory operations, and 0 skipped files.
 
 ---
 
@@ -287,4 +466,4 @@ Example:
 | Duplicate windows | High | OPEN | 10 min | Add window guard |
 | Dev server exit code 1 | Critical | OPEN | TBD | Debug Vite/Electron |
 | Features don't work | Critical | OPEN | 2 hours | Connect Gemini API |
-
+| Shimeji jitter/click barrier | High | RESOLVED | Done | Fixed 2026-05-21 |

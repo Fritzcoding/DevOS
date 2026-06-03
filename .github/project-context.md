@@ -14,7 +14,7 @@ The application runs as a borderless, always-on-top floating Electron window on 
 - Frontend: React + TypeScript + Tailwind CSS + Vite
 - Desktop: Electron
 - Runtime: Node.js 18+
-- AI: Google Gemini API (Free tier available)
+- AI: Cloud REST APIs (OpenAI-compatible/Anthropic-style) and Local Ollama
 - Code Parsing: Monaco Editor
 - Build: Vite + electron-builder
 - Package Manager: npm
@@ -24,7 +24,9 @@ The application runs as a borderless, always-on-top floating Electron window on 
 ### Core Layer
 - Event Bus (src/core/event-bus.ts) - Pub/sub pattern for decoupled communication
 - State Machine (src/core/state-machine.ts) - Enforces valid state transitions
-- AI Client (src/services/ai/ai-client.ts) - Unified interface to Gemini API
+- AI Client (src/services/ai/ai-client.ts) - Feature-facing AI gateway
+- AI Router (src/services/ai-routing/AIRouter.ts) - Routes prompts to Cloud AI or Local Ollama
+- AI Settings Manager (src/services/ai-routing/AISettingsManager.ts) - Persists user AI settings in `~/.devops-lite/ai-settings.json`
 
 ### Feature Layer
 - Code Fixer (src/features/code-fixer/code-fixer.ts) - Clipboard-based code analysis and repair
@@ -54,8 +56,10 @@ The application runs as a borderless, always-on-top floating Electron window on 
 Install dependencies:
   npm install
 
-Create .env.local with API key:
-  GEMINI_API_KEY=your-key-here
+AI setup:
+  - Cloud AI: open AI Settings, paste an API key, and choose a model string such as `gpt-4o-mini` or `deepseek-chat`.
+  - Local AI: install/start Ollama, confirm `http://localhost:11434` is reachable, and download `qwen2.5-coder:7b`.
+  - If `'ollama' is not recognized as an internal or external command`, Ollama is running but the CLI is not on PATH. DevOps Lite falls back to the HTTP pull API when possible. To fix the CLI permanently, reinstall/update Ollama and verify `ollama --version` in a new terminal.
 
 Development:
   npm run dev              # Runs Vite + Electron
@@ -69,6 +73,11 @@ Production:
 Validation:
   npm run type-check       # TypeScript check
   npm run lint             # Lint TypeScript
+
+Shimeji interaction:
+  - Left-click the Shimeji icon to open the feature menu.
+  - Left-click the Shimeji icon again to close the feature menu.
+  - Right-click the Shimeji icon for tray/settings actions.
 
 ## Known Environment
 

@@ -7,7 +7,9 @@ const electron_1 = require("electron");
  */
 const electronAPI = {
     // Code Fixing
-    fixCode: (code, language, prompt) => electron_1.ipcRenderer.invoke('devops:code-fixer:fix', { code, language, prompt }),
+    fixCode: (code, language, mode = 'ai') => electron_1.ipcRenderer.invoke('devops:code-fixer:fix', { code, language, mode }),
+    runCodeFixAgent: (request) => electron_1.ipcRenderer.invoke('devops:code-fixer:agent', request),
+    readClipboard: () => electron_1.ipcRenderer.invoke('devops:clipboard:read'),
     chatAI: (message, context) => electron_1.ipcRenderer.invoke('devops:chat:send', { message, context }),
     onCodeFixStream: (callback) => {
         const wrappedCallback = (_event, chunk) => callback(chunk);
@@ -24,8 +26,9 @@ const electronAPI = {
     },
     // File Operations
     readFile: (filePath) => electron_1.ipcRenderer.invoke('devops:file:read', { filePath }),
-    organizeFolder: (folderPath, rules) => electron_1.ipcRenderer.invoke('devops:file:organize', { folderPath, rules }),
+    organizeFolder: (folderPath, rules, mode = 'professional', instruction) => electron_1.ipcRenderer.invoke('devops:file:organize', { folderPath, rules, mode, instruction }),
     applyOrganization: (folderPath, organization) => electron_1.ipcRenderer.invoke('devops:file:apply-org', { folderPath, organization }),
+    chatWithCodebase: (projectPath, message, history) => electron_1.ipcRenderer.invoke('devops:chat:codebase', { projectPath, message, history }),
     // Task Management
     cancelTask: (requestId) => electron_1.ipcRenderer.invoke('devops:task:cancel', { requestId }),
     healthCheck: () => electron_1.ipcRenderer.invoke('devops:health-check'),
@@ -39,13 +42,32 @@ const electronAPI = {
     minimizeToTray: () => electron_1.ipcRenderer.invoke('devops:window:minimize-tray'),
     showMainWindow: () => electron_1.ipcRenderer.invoke('devops:window:show'),
     moveWindow: (x, y) => electron_1.ipcRenderer.invoke('devops:window:move', x, y),
+    resizeWindow: (width, height) => electron_1.ipcRenderer.invoke('devops:window:resize', width, height),
     setIgnoreMouseEvents: (ignore) => electron_1.ipcRenderer.invoke('devops:window:set-ignore-mouse-events', ignore),
+    getAISettings: () => electron_1.ipcRenderer.invoke('devops:ai:get-settings'),
+    saveAISettings: (settings) => electron_1.ipcRenderer.invoke('devops:ai:save-settings', settings),
+    completeAISetup: () => electron_1.ipcRenderer.invoke('devops:ai:complete-setup'),
+    getAIStatus: () => electron_1.ipcRenderer.invoke('devops:ai:get-status'),
+    setActiveAIBackend: (backend) => electron_1.ipcRenderer.invoke('devops:ai:set-active-backend', backend),
+    executeAIPrompt: (request) => electron_1.ipcRenderer.invoke('devops:ai:execute-prompt', request),
+    pullOllamaModel: () => electron_1.ipcRenderer.invoke('devops:ai:pull-ollama-model'),
+    cancelOllamaPull: () => electron_1.ipcRenderer.invoke('devops:ai:cancel-ollama-pull'),
+    onOllamaPullProgress: (callback) => {
+        const wrappedCallback = (_event, progress) => callback(progress);
+        electron_1.ipcRenderer.on('devops:ai:ollama-pull-progress', wrappedCallback);
+        return () => electron_1.ipcRenderer.off('devops:ai:ollama-pull-progress', wrappedCallback);
+    },
     onShowMenu: (callback) => {
         const wrappedCallback = () => callback();
         electron_1.ipcRenderer.on('devops:show-menu', wrappedCallback);
         return () => electron_1.ipcRenderer.off('devops:show-menu', wrappedCallback);
     },
     selectProjectPath: () => electron_1.ipcRenderer.invoke('devops:dialog:select-path'),
+    getCurrentProjectPath: () => electron_1.ipcRenderer.invoke('devops:project:get-current-path'),
+    createDiscussionRoom: (projectPath) => electron_1.ipcRenderer.invoke('devops:discussion:create', { projectPath }),
+    joinDiscussionRoom: (projectPath, key) => electron_1.ipcRenderer.invoke('devops:discussion:join', { projectPath, key }),
+    readDiscussionRoom: (projectPath, key) => electron_1.ipcRenderer.invoke('devops:discussion:read', { projectPath, key }),
+    writeDiscussionRoom: (projectPath, key, content) => electron_1.ipcRenderer.invoke('devops:discussion:write', { projectPath, key, content }),
     // Legacy compatibility
     organizeFolder_legacy: (path, rules) => electron_1.ipcRenderer.invoke('devops:file:organize', { folderPath: path, rules }),
     applyOrganization_legacy: (path, org) => electron_1.ipcRenderer.invoke('devops:file:apply-org', { folderPath: path, organization: org }),
