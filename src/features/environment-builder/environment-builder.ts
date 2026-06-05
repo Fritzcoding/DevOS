@@ -8,7 +8,6 @@ import { lstatSync, readdirSync } from 'fs';
 import { join } from 'path';
 import { eventBus } from '../../core/event-bus';
 import { stateMachine } from '../../core/state-machine';
-import { aiClient } from '../../services/ai/ai-client';
 
 export interface ProjectScan {
   root: string;
@@ -101,7 +100,7 @@ class EnvironmentBuilderFeature {
   }
 
   /**
-   * Analyze environment using AI
+   * Analyze environment without loading an LLM.
    */
   async analyzeEnvironment(projectScan: ProjectScan): Promise<EnvironmentAnalysis | null> {
     if (this.isProcessing) {
@@ -109,31 +108,11 @@ class EnvironmentBuilderFeature {
       return null;
     }
 
-    if (!aiClient.hasApiKey()) {
-      eventBus.emit({
-        type: 'FEATURE_FAILED',
-        feature: 'environment',
-        error: 'Gemini API key not configured',
-      });
-      return null;
-    }
-
     try {
       this.isProcessing = true;
       await stateMachine.setState('environment-running');
 
-      const response = await aiClient.analyzeEnvironment(projectScan);
-
-      if (!response.success) {
-        eventBus.emit({
-          type: 'FEATURE_FAILED',
-          feature: 'environment',
-          error: response.error || 'Unknown error',
-        });
-        return null;
-      }
-
-      const analysis = response.data as EnvironmentAnalysis;
+      const analysis = this.buildDeterministicAnalysis(projectScan);
 
       eventBus.emit({
         type: 'FEATURE_COMPLETE',
@@ -219,6 +198,86 @@ class EnvironmentBuilderFeature {
       'Dockerfile',
     ];
     return configPatterns.includes(filename);
+  }
+
+  private buildDeterministicAnalysis(scan: ProjectScan): EnvironmentAnalysis {
+    const setupSteps: SetupStep[] = [];
+    const missingTools: string[] = [];
+    const frameworks: string[] = [];
+
+    const addMissingTool = (tool: string) => {
+      if (!this.checkToolAvailable(tool) && !missingTools.includes(tool)) {
+        missingTools.push(tool);
+      }
+    };
+
+    const addStep = (
+      description: string,
+      command: string,
+      platform: SetupStep['platform'] = 'universal',
+      required = true
+    ) => {
+      setupSteps.push({
+        step: setupSteps.length + 1,
+        description,
+        command,
+        platform,
+        required,
+      });
+    };
+
+    if (scan.has_package_json) {
+      frameworks.push('node');
+      addMissingTool('node');
+      addMissingTool('npm');
+      addStep('Install Node dependencies', 'npm install');
+      addStep('Run package tests', 'npm test', 'universal', false);
+      addStep('Start the project', 'npm start', 'universal', false);
+    }
+
+    if (scan.has_requirements) {
+      frameworks.push('python');
+      addMissingTool(process.platform === 'win32' ? 'python' : 'python3');
+      addStep('Create a Python virtual environment', process.platform === 'win32' ? 'python -m venv .venv' : 'python3 -m venv .venv', 'universal', false);
+      addStep('Install Python dependencies', process.platform === 'win32' ? '.venv\\Scripts\\pip install -r requirements.txt' : '.venv/bin/pip install -r requirements.txt');
+    }
+
+    if (scan.has_pom) {
+      frameworks.push('java-maven');
+      addMissingTool('java');
+      addMissingTool('mvn');
+      addStep('Resolve Maven dependencies and run tests', 'mvn test');
+    }
+
+    if (scan.has_cargo) {
+      frameworks.push('rust');
+      addMissingTool('cargo');
+      addStep('Build the Rust project', 'cargo build');
+      addStep('Run Rust tests', 'cargo test', 'universal', false);
+    }
+
+    if (scan.has_go_mod) {
+      frameworks.push('go');
+      addMissingTool('go');
+      addStep('Download Go modules', 'go mod download');
+      addStep('Run Go tests', 'go test ./...', 'universal', false);
+    }
+
+    if (setupSteps.length === 0) {
+      addStep('Inspect the project manually', process.platform === 'win32' ? 'dir' : 'ls -la', 'universal', false);
+    }
+
+    const detectedType = frameworks.length > 0 ? frameworks.join('+') : 'unknown';
+    return {
+      detected_type: detectedType,
+      missing_tools: missingTools,
+      setup_steps: setupSteps,
+      env_vars_needed: [],
+      estimated_minutes: Math.max(2, Math.min(15, setupSteps.length * 2)),
+      summary: frameworks.length > 0
+        ? `Detected ${detectedType} from project files. Generated setup steps without loading an LLM.`
+        : 'No common environment markers were detected. Generated a lightweight manual inspection plan.',
+    };
   }
 
   /**

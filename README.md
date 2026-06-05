@@ -1,276 +1,154 @@
-﻿# DevOps Lite
+# DevOps Lite
 
-⚡ **An intelligent AI-powered DevOps assistant** that floats on your desktop as a Shimeji-style widget. It supports Cloud AI APIs and Local AI through Ollama, and is built with advanced architectural patterns: event-driven pub/sub messaging, state machines for concurrent safety, and strict process boundaries between renderer and main process.
+DevOps Lite is an Electron desktop assistant for developer workflows. It provides Code Fixer, Environment Builder, File Organizer, Codebase Chat, and Discussion Room features through a floating Shimeji-style UI.
 
-DevOps Lite demonstrates modern software engineering best practices including **event bus patterns**, **state machine concurrency control**, **Electron IPC architecture**, **structured LLM prompting**, and **plugin-style feature extensibility**.
-
-## What DevOps Lite Does
-
-DevOps Lite provides three intelligent tools that integrate seamlessly into your development workflow:
-
-### 🪄 **Code Auto Fixer** — One-Click AI Code Repair
-- **Watches your clipboard** for code snippets
-- **Analyzes errors** using Google Gemini with structured JSON schema prompting
-- **Shows a side-by-side diff viewer** with syntax highlighting for instant review
-- **Confidence scoring** so you know which fixes are safest
-- **Multi-language support** — works with any code language Gemini understands
-
-### ⚙️ **Environment Builder** — Automated Setup Generation
-- **Deep project scanning** to detect tech stack (Node.js, Python, Java, Go, Rust, etc.)
-- **Intelligent analysis** of dependencies, build files, and configuration
-- **Generates platform-specific setup steps** (install, configure, run) for Windows/macOS/Linux
-- **Handles complex environments** — mono-repos, Docker, containers, virtual environments
-- **Output to console or file** for easy sharing and documentation
-
-### 📁 **File Organizer** — Intelligent Project Restructuring
-- **Deep-scans projects** to identify architecture patterns and redundancies
-- **Detects code smell** — duplicate files, misplaced modules, unused assets
-- **Proposes restructuring plans** in an interactive preview overlay
-- **Applies changes safely** — user confirms before any file moves
-- **Maintains referential integrity** — automatically updates imports and cross-references
-
-## Advanced Architecture & Technologies
-
-DevOps Lite showcases enterprise-grade software engineering patterns:
-
-### 🏗️ **Pattern: Event-Driven Pub/Sub Architecture**
-- **Event Bus** (`src/core/event-bus.ts`) implements a type-safe, decoupled message passing system
-- **Real-time progress updates** push from features to UI via structured events
-- **Event naming convention**: `feature:<name>:<event>` (e.g., `feature:code-fixer:progress`)
-- **Enables loose coupling** between business logic and UI rendering
-
-### 🔄 **Pattern: State Machine Concurrency Control**
-- **State Machine** (`src/core/state-machine.ts`) enforces valid state transitions
-- **Prevents race conditions** by serializing feature execution (IDLE → RUNNING → IDLE)
-- **Hooks system** for pre/post-transition logic and validation
-- **Guarantees single feature runs at a time** despite async JavaScript
-
-### 🔗 **Architecture: Strict Process Boundary (Electron IPC)**
-- **Renderer Process** (`src/`) — React UI only, cannot access file system or shell
-- **Main Process** (`electron/main.ts`) — All Node.js APIs (fs, child_process, shell), no React
-- **IPC Bridge** (`electron/preload.ts`) — Type-safe window.electronAPI methods
-- **Security by design** — eliminates entire classes of vulnerabilities (file access exploitation, arbitrary code execution)
-
-### 🤖 **Pattern: Structured LLM Prompting with JSON Schema**
-- **Schema-first approach**: Every Gemini prompt includes a literal JSON schema
-- **Deterministic parsing** — enforces `raw.replace(/```json|```/g, '').trim()` for safety
-- **Confidence scoring** embedded in response schemas
-- **Handles edge cases** — malformed output gracefully degrades to safe defaults
-
-### ⚡ **Build & Packaging Pipeline**
-- **Vite** for blazing-fast HMR during development
-- **TypeScript** for type safety across all layers
-- **electron-builder** for cross-platform (Windows/macOS) distribution
-- **npm** workspaces ready for monorepo expansion
-
-## Quick Start
-
-```bash
-# Install dependencies
-npm install
-
-# Run development server (Vite + Electron)
-npm run dev
-```
-
-## AI Setup
-
-On first launch, DevOps Lite opens **AI Settings**. Choose one route:
-
-### Cloud AI
-- Paste an API key directly in the setup screen.
-- Pick a provider preset such as OpenAI, DeepSeek, or Anthropic.
-- Edit the model string if needed, for example `gpt-4o-mini` or `deepseek-chat`.
-- Settings are stored locally in `~/.devops-lite/ai-settings.json`.
-
-### Local AI with Ollama
-- Install Ollama from https://ollama.com/download.
-- Start Ollama and confirm the local server is reachable at `http://localhost:11434`.
-- DevOps Lite checks `http://localhost:11434/api/tags` and looks for `qwen2.5-coder:7b`.
-- If the selected model is missing, click **Download Engine**. `qwen2.5-coder:7b` is the default, but you can choose another installed or downloadable Ollama model string.
-- Download progress shows a percentage and can be cancelled.
-
-If you see `'ollama' is not recognized as an internal or external command`, Ollama's desktop/server is running but the `ollama` command-line tool is not available on the PATH for DevOps Lite. The app now falls back to Ollama's local HTTP pull API when possible. To fix the CLI setup permanently, reinstall/update Ollama, enable command-line access, restart your terminal and DevOps Lite, then verify:
-
-```powershell
-ollama --version
-ollama pull qwen2.5-coder:7b
-```
-
-When both Cloud AI and Local AI are configured, the feature menu shows a route toggle so you can switch between them without reopening setup.
-
-## Documentation
-
-Comprehensive documentation organized in **.github/**:
-
-| File | Purpose |
-|------|---------|
-| **project-context.md** | Architecture, features, current state, build instructions |
-| **copilot-instructions.md** | Development guidelines, process boundaries, coding standards |
-| **handoff.md** | Active work, blockers, next steps |
-| **roadmap.md** | Development phases and timeline |
-| **problems.md** | Known issues and resolution status |
-| **agents.md** | Dev environment tips and workflows |
-
-## Shimeji Interaction
-
-- During first-run AI setup, left-click the Shimeji icon opens/closes the AI configuration panel. It will not open the feature menu behind setup.
-- After AI setup is complete, left-click the Shimeji icon opens the feature menu.
-- Left-click it again while the feature menu is open to close the menu and leave only the Shimeji visible.
-- Right-click the Shimeji icon for tray/settings actions.
-
-## Development Commands
-
-```bash
-# Development
-npm run dev              # Run Vite + Electron (full stack)
-npm run dev:vite        # Vite dev server only
-npm run dev:watch       # TypeScript watch mode
-
-# Production
-npm run build            # Build optimized bundle and package
-npm run build:web        # Web assets only (no packaging)
-
-# Quality Assurance
-npm run type-check       # TypeScript validation
-npm run lint             # ESLint validation
-```
-
-## Tech Stack & Dependencies
-
-| Layer | Technology | Purpose |
-|-------|-----------|---------|
-| **Frontend** | React 18 + TypeScript + Tailwind CSS | Component-based UI with type safety and styling |
-| **Build & Dev** | Vite | Fast HMR, optimized production builds |
-| **Desktop** | Electron | Cross-platform desktop application |
-| **AI/LLM** | Google Gemini API | Natural language understanding and code generation |
-| **Packaging** | electron-builder | Cross-platform executable and installer creation |
-| **Runtime** | Node.js 18+ | JavaScript runtime for main process |
-| **Code Editor** | Monaco Editor | Syntax highlighting in diff viewer |
-| **Architecture** | Event Bus + State Machine | Decoupled, concurrent-safe feature coordination |
-
-## Why These Patterns Matter
-
-### For Developers
-- **Event Bus** makes features extensible — add new features without modifying existing code
-- **State Machine** prevents bugs from concurrent operations — async operations safely serialize
-- **Process Boundary** eliminates security vulnerabilities — no accidental file system access from UI
-
-### For Teams
-- **Clean Architecture** enables easy onboarding — clear separation of concerns
-- **DevOps Best Practices** — demonstrates CI/CD-friendly design with proper testing hooks
-- **Type Safety** throughout — TypeScript prevents entire classes of runtime errors
-
-## Project Structure
-
-```
-devops-lite/
-├── src/
-│   ├── components/          # React UI components
-│   │   ├── Shimeji.tsx      # Main floating widget
-│   │   ├── DebugPanel.tsx   # Real-time event logger
-│   │   └── overlays/        # Feature-specific overlays
-│   ├── features/            # Feature implementations
-│   │   ├── code-fixer/
-│   │   ├── environment-builder/
-│   │   └── file-organizer/
-│   ├── core/                # Architecture patterns
-│   │   ├── event-bus.ts     # Pub/sub implementation
-│   │   └── state-machine.ts # Concurrency control
-│   ├── services/            # Utility services
-│   │   └── ai/
-│   │       └── ai-client.ts # Gemini API wrapper
-│   └── types.ts             # Global TypeScript definitions
-├── electron/
-│   ├── main.ts              # Electron main process (all Node APIs)
-│   └── preload.ts           # IPC interface definitions
-├── .github/                 # Documentation
-│   ├── copilot-instructions.md
-│   └── project-context.md
-└── package.json
-```
-
-## Environment Setup
+## Clean Laptop Setup
 
 ### Prerequisites
-- **Node.js 18+** (download from nodejs.org)
-- **npm 9+** (comes with Node.js)
-- **Windows 10+** or **macOS 10.15+**
 
-### Get a Free Gemini API Key
-1. Visit https://ai.google.dev/
-2. Click "Get API Key"
-3. Create a new project
-4. Generate an API key for "Gemini 1.5 Flash"
+- Node.js `20.19.0` or newer
+- npm `10` or newer
+- Git
+- Windows 10/11, macOS, or Linux
+- Optional local AI: Ollama from https://ollama.com/download
 
-### Installation & First Run
+The dependency tree currently includes packages that require Node 20+. Do not use Node 18 for this repo. Check your machine first:
+
 ```bash
-# Clone or extract the repository
+node --version
+npm --version
+```
+
+### Install
+
+```bash
+git clone <repo-url>
 cd devops-lite
+npm run setup
+```
 
-# Install all dependencies
-npm install
+`npm run setup` runs a preflight check, installs locked dependencies from `package-lock.json`, and compiles the Electron main/preload files.
 
-# Create environment file with your API key
-echo "GEMINI_API_KEY=your-key-from-ai-google-dev" > .env.local
+### Configure AI
 
-# Start development server
+Cloud AI can be configured in the app's AI Settings screen. For local env-file setup:
+
+```bash
+cp .env.example .env.local
+```
+
+Then edit `.env.local` and set only the keys you need. `.env.local` and other `.env*` files are ignored by git. Never commit real API keys.
+
+Local AI does not require an env file. Install Ollama, start it, then use AI Settings to select or download a model. The default local model is `qwen2.5-coder:7b`.
+
+### Run
+
+```bash
 npm run dev
-
-# Application will launch in Electron window
-# Click the floating button to access features
 ```
 
-## API Reference
+This compiles `main.ts` and `preload.ts`, starts Vite, then launches Electron. Generated files such as `main.js`, `preload.js`, and `dist/` are ignored.
 
-### Using Features Programmatically
+## Common Commands
 
-Each feature exports a clean interface for integration:
-
-```typescript
-// Code Fixer
-import { fixCode } from './features/code-fixer/code-fixer';
-const result = await fixCode(brokenCode, language);
-
-// Environment Builder  
-import { analyzeProject } from './features/environment-builder/environment-builder';
-const steps = await analyzeProject(folderPath, platform);
-
-// File Organizer
-import { organizeProject } from './features/file-organizer/file-organizer';
-const plan = await organizeProject(folderPath);
+```bash
+npm run preflight            # Check Node/npm/env readiness
+npm run setup                # Clean-laptop install path
+npm run dev                  # Vite + Electron
+npm run build                # Compile, build renderer, type-check
+npm run type-check           # TypeScript validation
+npm run test                 # Reset fixtures and run feature tests
+npm run verify               # Preflight + tests + type-check
+npm run reset:test-fixtures  # Recreate mutable fixture workdir
+npm run clean                # Remove generated build artifacts
 ```
 
-### Event Bus: Listen to Feature Updates
+## Feature Testing
 
-```typescript
-import { eventBus } from './core/event-bus';
+Resettable fixtures live under `tests/fixtures/pristine`. Tests copy them to `tests/fixtures/workdir`, mutate only the workdir, and can be reset at any time:
 
-// Listen for code fixer progress
-eventBus.on('feature:code-fixer:progress', (data) => {
-  console.log('Progress:', data.percentage);
-});
-
-// Emit custom events
-eventBus.emit('custom:event:name', { payload: 'data' });
+```bash
+npm run reset:test-fixtures
+npm run test
 ```
 
-## Known Issues & Troubleshooting
+Covered feature smoke tests:
 
-See [problems.md](.github/problems.md) for detailed troubleshooting and resolutions.
+- Env Builder scans a Node/Python fixture, detects config files, and ignores `node_modules`.
+- File Organizer generates preview moves from an instruction.
+- File Organizer dry-run does not mutate files.
+- File Organizer apply writes rollback metadata and rollback restores the original file.
 
-**Critical**: Current issues with `npm run dev` — see [roadmap.md](.github/roadmap.md) Phase 2 for planned fixes.
+## Environment Builder
 
-## Contributing
+Environment Builder scans a selected project and returns setup guidance for the detected stack. It is preview/guidance first; it should explain what to install, configure, and run before any command execution is considered.
 
-See [agents.md](.github/agents.md) for development environment setup and workflows.
+Current integration:
 
-Developers should follow the guidelines in [copilot-instructions.md](.github/copilot-instructions.md) for:
-- Process boundary rules (renderer vs main process)
-- AI prompting patterns with JSON schemas
-- Event bus naming conventions
-- State machine transition patterns
+- Renderer calls `window.electronAPI.detectEnv(projectPath)`.
+- Preload forwards to `devops:env:detect`.
+- Main process scans the selected project and asks the configured AI route for setup steps.
+- `SetupStepsOverlay` displays detected type, missing tools, commands, environment variables, and estimated setup time.
 
-## License
+Expected output shape:
 
-See LICENSE file or check repository for license details.
+```json
+{
+  "detected_type": "node|python|java-maven|rust|go|unknown",
+  "missing_tools": ["node"],
+  "setup_steps": [
+    {
+      "step": 1,
+      "description": "Install dependencies",
+      "command": "npm install",
+      "platform": "universal",
+      "required": true
+    }
+  ],
+  "env_vars_needed": ["GEMINI_API_KEY"],
+  "estimated_minutes": 5,
+  "summary": "Short setup summary"
+}
+```
+
+## File Organizer
+
+File Organizer is preview-first and rollback-safe. It scans files, produces a proposed plan, and applies moves only after user confirmation.
+
+Current integration:
+
+- Renderer calls `window.electronAPI.organizeFiles(folderPath, mode, instruction)`.
+- Main process calls `generateOrganizerPlan`.
+- Apply calls `SafeFileOperationExecutor`.
+- Rollback metadata is saved under `.devops-lite-organizer/rollback-<batch>.jsonl` inside the selected project.
+
+Protected paths include `.git`, `node_modules`, build outputs, lockfiles, `.env*`, `.devops-lite-organizer`, and trash/rollback internals.
+
+## Architecture
+
+Important entrypoints:
+
+- `main.ts`: Electron main process and IPC handlers
+- `preload.ts`: safe renderer-to-main IPC bridge
+- `src/main.tsx`: React renderer entry
+- `src/App.tsx`: main UI state
+- `src/services/ai-routing`: cloud/local AI routing
+- `src/features/environment-builder`: Env Builder feature logic
+- `src/features/file-organizer`: organizer planning, safety, apply, rollback
+
+Renderer code must not import Node or Electron APIs directly. File and shell access belongs in the main process behind IPC.
+
+## Troubleshooting
+
+- `preflight` fails on Node version: install Node.js 20.19+ and rerun `npm run setup`.
+- `electron` or `vite` is not recognized: run `npm run setup` from the repo root.
+- Cloud AI says key missing: add a key in AI Settings or set `GEMINI_API_KEY` in `.env.local`.
+- Ollama model missing: open AI Settings and download the selected model, or run `ollama pull qwen2.5-coder:7b`.
+- `ollama` command not found but Ollama is running: reinstall/update Ollama, restart your terminal and DevOps Lite, then verify `ollama --version`.
+- Blank or stale app after pulling changes: run `npm run clean && npm run setup && npm run dev`.
+
+## Security Notes
+
+- Real `.env*` files are ignored. Keep API keys in `.env.local` or in the app's local settings.
+- Do not commit `dist/`, `node_modules/`, generated Electron JS, rollback folders, or test workdirs.
+- File Organizer must remain preview-first unless an explicit, separate autonomous mode is implemented with confidence thresholds and rollback.

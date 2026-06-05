@@ -3,9 +3,16 @@
   "private": true,
   "version": "1.0.0",
   "main": "main.js",
+  "engines": {
+    "node": ">=20.19.0",
+    "npm": ">=10.0.0"
+  },
   "lint": "eslint src --ext .ts,.tsx",
   "format": "prettier --write src",
   "scripts": {
+    "preinstall": "node scripts/preflight.mjs --install",
+    "preflight": "node scripts/preflight.mjs",
+    "setup": "npm run preflight && npm install && npm run compile:main",
     "compile:main": "tsc main.ts preload.ts --lib ES2022,DOM --module commonjs --target ES2022 --moduleResolution node --esModuleInterop --skipLibCheck",
     "dev": "npm run compile:main && concurrently \"vite\" \"cross-env NODE_ENV=development electron . --shimeji\"",
     "dev:shimeji": "npm run compile:main && concurrently \"vite\" \"electron . --shimeji\"",
@@ -17,7 +24,13 @@
     "preview": "vite preview",
     "electron": "electron .",
     "type-check": "tsc --noEmit",
-    "clean": "rm -rf dist",
+    "clean": "node scripts/clean.mjs",
+    "reset:test-fixtures": "node scripts/reset-test-fixtures.mjs",
+    "reset:samples": "node scripts/reset-samples.mjs",
+    "room-sync": "node scripts/room-sync-server.mjs",
+    "check:samples": "npm run reset:samples && tsx tests/samples.test.ts",
+    "test": "npm run reset:test-fixtures && npm run check:samples && tsx tests/features.test.ts",
+    "verify": "npm run preflight && npm run test && npm run type-check",
     "lint": "tsc --noEmit"
   },
   "dependencies": {

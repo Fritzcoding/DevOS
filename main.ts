@@ -18,7 +18,7 @@ import {
 } from 'electron';
 import path from 'path';
 import * as fsExtra from 'fs-extra';
-import { exec } from 'child_process';
+import { exec, execSync } from 'child_process';
 import { randomBytes } from 'crypto';
 import { promisify } from 'util';
 import { IPCErrorCode, IPC_CHANNELS } from './src/ipc-types';
@@ -29,6 +29,7 @@ import { ollamaClient } from './src/services/ai-routing/OllamaClient';
 import { generateOrganizerPlan } from './src/features/file-organizer/ai-codebase-organizer';
 import { legacyPlanToOperations } from './src/features/file-organizer/engine/plan-adapter';
 import { SafeFileOperationExecutor } from './src/features/file-organizer/engine/safe-file-operation-executor';
+import { FileOrganizerService } from './src/features/file-organizer/engine/file-organizer-service';
 import type {
   FixCodeRequest,
   FixCodeResponse,
@@ -68,6 +69,93 @@ const forceShimeji = process.argv.includes('--shimeji') || process.env.SHIMEJI =
 
 let mainWindow: BrowserWindow | null = null;
 let tray: Tray | null = null;
+
+const TEST_SAMPLE_PROJECTS = [
+  'code-fixer',
+  'code-fixer-java-codebase',
+  'env-builder-node-basic',
+  'env-builder-python-basic',
+  'file-organizer-messy',
+  'file-organizer-logic',
+  'file-organizer-ai',
+];
+
+type TestSampleDefinition = {
+  key: string;
+  projectKey: string;
+  feature: 'code-fixer' | 'environment' | 'organizer';
+  label: string;
+  description: string;
+  scope?: 'clipboard' | 'file' | 'codebase';
+  filePath?: string;
+  warning?: string;
+};
+
+const TEST_SAMPLE_DEFINITIONS: TestSampleDefinition[] = [
+  {
+    key: 'code-fixer-clipboard',
+    projectKey: 'code-fixer',
+    feature: 'code-fixer',
+    scope: 'clipboard',
+    filePath: 'clipboard-snippet.js',
+    label: 'Clipboard snippet',
+    description: 'Copy this snippet to the clipboard, then run Clipboard scope',
+  },
+  {
+    key: 'code-fixer-single-file',
+    projectKey: 'code-fixer',
+    feature: 'code-fixer',
+    scope: 'file',
+    filePath: 'single-file-bug.js',
+    label: 'Single-file bug',
+    description: 'Open and edit one JavaScript file, then preview the file fix',
+  },
+  {
+    key: 'code-fixer-java-codebase',
+    projectKey: 'code-fixer-java-codebase',
+    feature: 'code-fixer',
+    scope: 'codebase',
+    filePath: 'src/main/java/devopslite/sample/ReportPrinter.java',
+    label: 'Java codebase',
+    description: 'Small Java project with several files for whole-codebase repair',
+    warning: 'local llm/api must have sufficient power for this',
+  },
+  {
+    key: 'env-builder-node-basic',
+    projectKey: 'env-builder-node-basic',
+    feature: 'environment',
+    label: 'Environment',
+    description: 'Minimal Node project that installs and tests cleanly',
+  },
+  {
+    key: 'env-builder-python-basic',
+    projectKey: 'env-builder-python-basic',
+    feature: 'environment',
+    label: 'Python Environment',
+    description: 'Small Python project with requirements and a smoke test',
+  },
+  {
+    key: 'file-organizer-messy',
+    projectKey: 'file-organizer-messy',
+    feature: 'organizer',
+    label: 'File Organizer',
+    description: 'Messy docs, images, scripts, and financial files',
+  },
+  {
+    key: 'file-organizer-logic',
+    projectKey: 'file-organizer-logic',
+    feature: 'organizer',
+    label: 'Logic Organizer',
+    description: 'Rule-based preview sample with documents, images, datasets, logs, and models',
+  },
+  {
+    key: 'file-organizer-ai',
+    projectKey: 'file-organizer-ai',
+    feature: 'organizer',
+    label: 'AI Organizer',
+    description: 'Instruction-guided sample with financials, documents, and images to rename',
+  },
+];
 
 // Helper to check if a dev server is running on a given port
 const checkServerReady = async (port: number, timeout: number = 500): Promise<boolean> => {
@@ -646,6 +734,145 @@ ipcMain.handle('devops:clipboard:read', async () => {
   }
 });
 
+ipcMain.handle('devops:clipboard:write', async (_event: IpcMainInvokeEvent, request: any) => {
+  try {
+    const { clipboard } = require('electron');
+    clipboard.writeText(String(request?.content || ''));
+    return { success: true };
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    return {
+      success: false,
+      error: message,
+    };
+  }
+});
+
+ipcMain.handle('devops:file:read', async (_event: IpcMainInvokeEvent, request: any) => {
+  const started = Date.now();
+  try {
+    const filePath = String(request?.filePath || '');
+    if (!filePath) return createErrorResponse(started, 'File path is required');
+    const stat = await fsExtra.stat(filePath);
+    if (!stat.isFile()) return createErrorResponse(started, 'Selected path is not a file');
+    if (stat.size > 1_000_000) return createErrorResponse(started, 'File is too large to edit here');
+    const content = await fsExtra.readFile(filePath, 'utf8');
+    return {
+      status: 'success',
+      requestId: 'unknown',
+      timestamp: Date.now(),
+      duration: Date.now() - started,
+      content,
+      encoding: 'utf8',
+      sizeKB: Math.round(stat.size / 1024),
+    };
+  } catch (error) {
+    return createErrorResponse(started, error instanceof Error ? error.message : String(error));
+  }
+});
+
+ipcMain.handle('devops:file:write', async (_event: IpcMainInvokeEvent, request: any) => {
+  const started = Date.now();
+  try {
+    const filePath = String(request?.filePath || '');
+    const content = String(request?.content || '');
+    if (!filePath) return createErrorResponse(started, 'File path is required');
+    const absolutePath = path.resolve(filePath);
+    const samplesWorkRoot = path.resolve(process.cwd(), 'samples', 'workdir');
+    const relativeToSamples = path.relative(samplesWorkRoot, absolutePath);
+    if (relativeToSamples.startsWith('..') || path.isAbsolute(relativeToSamples)) {
+      return createErrorResponse(started, 'Only mutable test samples can be edited here');
+    }
+    await fsExtra.ensureDir(path.dirname(absolutePath));
+    await fsExtra.writeFile(absolutePath, content, 'utf8');
+    return {
+      status: 'success',
+      requestId: 'unknown',
+      timestamp: Date.now(),
+      duration: Date.now() - started,
+      bytesWritten: Buffer.byteLength(content, 'utf8'),
+    };
+  } catch (error) {
+    return createErrorResponse(started, error instanceof Error ? error.message : String(error));
+  }
+});
+
+async function ensureSampleWorkdirs() {
+  const samplesRoot = path.resolve(process.cwd(), 'samples');
+  const pristineRoot = path.join(samplesRoot, 'pristine');
+  const workRoot = path.join(samplesRoot, 'workdir');
+  await fsExtra.ensureDir(workRoot);
+
+  for (const sampleKey of TEST_SAMPLE_PROJECTS) {
+    const source = path.join(pristineRoot, sampleKey);
+    const target = path.join(workRoot, sampleKey);
+    if (!(await fsExtra.pathExists(source))) {
+      throw new Error(`Missing pristine sample: ${source}`);
+    }
+    if (!(await fsExtra.pathExists(target))) {
+      await fsExtra.copy(source, target, { overwrite: true, errorOnExist: false });
+    }
+  }
+}
+
+async function resetSampleWorkdirs() {
+  const samplesRoot = path.resolve(process.cwd(), 'samples');
+  const pristineRoot = path.join(samplesRoot, 'pristine');
+  const workRoot = path.join(samplesRoot, 'workdir');
+  await fsExtra.remove(workRoot);
+  await fsExtra.ensureDir(workRoot);
+
+  for (const sampleKey of TEST_SAMPLE_PROJECTS) {
+    const source = path.join(pristineRoot, sampleKey);
+    if (!(await fsExtra.pathExists(source))) {
+      throw new Error(`Missing pristine sample: ${source}`);
+    }
+    await fsExtra.copy(source, path.join(workRoot, sampleKey), { overwrite: true, errorOnExist: false });
+  }
+}
+
+function sampleListPayload() {
+  const workRoot = path.resolve(process.cwd(), 'samples', 'workdir');
+  return TEST_SAMPLE_DEFINITIONS.map((sample) => {
+    const projectPath = path.join(workRoot, sample.projectKey);
+    return {
+      ...sample,
+      projectPath,
+      path: sample.filePath ? path.join(projectPath, sample.filePath) : projectPath,
+    };
+  });
+}
+
+ipcMain.handle('devops:samples:list', async () => {
+  try {
+    await ensureSampleWorkdirs();
+    return {
+      success: true,
+      samples: sampleListPayload(),
+    };
+  } catch (error) {
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : String(error),
+    };
+  }
+});
+
+ipcMain.handle('devops:samples:reset', async () => {
+  try {
+    await resetSampleWorkdirs();
+    return {
+      success: true,
+      samples: sampleListPayload(),
+    };
+  } catch (error) {
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : String(error),
+    };
+  }
+});
+
 ipcMain.handle('devops:code-fixer:agent', async (_event: IpcMainInvokeEvent, request: any) => {
   const started = Date.now();
   try {
@@ -804,7 +1031,12 @@ ipcMain.handle('devops:discussion:create', async (_event: IpcMainInvokeEvent, re
   try {
     const key = randomBytes(4).toString('hex').toUpperCase();
     const result = await ensureDiscussionRoom(request?.projectPath || process.cwd(), key, true);
-    return { success: true, key, content: result.content, path: result.path };
+    const syncUrl = normalizeDiscussionSyncUrl(request?.syncUrl);
+    if (syncUrl) {
+      await writeRemoteDiscussionRoom(syncUrl, key, result.content);
+      return { success: true, key, content: result.content, path: result.path, remote: true };
+    }
+    return { success: true, key, content: result.content, path: result.path, remote: false };
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     return { success: false, error: message };
@@ -814,8 +1046,14 @@ ipcMain.handle('devops:discussion:create', async (_event: IpcMainInvokeEvent, re
 ipcMain.handle('devops:discussion:join', async (_event: IpcMainInvokeEvent, request: any) => {
   try {
     const key = sanitizeRoomKey(request?.key);
+    const syncUrl = normalizeDiscussionSyncUrl(request?.syncUrl);
+    if (syncUrl) {
+      const remote = await readRemoteDiscussionRoom(syncUrl, key);
+      await writeLocalDiscussionRoom(request?.projectPath || process.cwd(), key, remote.content);
+      return { success: true, key, content: remote.content, updatedAt: remote.updatedAt, remote: true };
+    }
     const result = await ensureDiscussionRoom(request?.projectPath || process.cwd(), key, true);
-    return { success: true, key, content: result.content, path: result.path };
+    return { success: true, key, content: result.content, path: result.path, remote: false };
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     return { success: false, error: message };
@@ -825,10 +1063,16 @@ ipcMain.handle('devops:discussion:join', async (_event: IpcMainInvokeEvent, requ
 ipcMain.handle('devops:discussion:read', async (_event: IpcMainInvokeEvent, request: any) => {
   try {
     const key = sanitizeRoomKey(request?.key);
+    const syncUrl = normalizeDiscussionSyncUrl(request?.syncUrl);
+    if (syncUrl) {
+      const remote = await readRemoteDiscussionRoom(syncUrl, key);
+      await writeLocalDiscussionRoom(request?.projectPath || process.cwd(), key, remote.content);
+      return { success: true, key, content: remote.content, updatedAt: remote.updatedAt, remote: true };
+    }
     const roomPath = getDiscussionRoomPath(request?.projectPath || process.cwd(), key);
     const content = await fsExtra.readFile(roomPath, 'utf8');
     const stat = await fsExtra.stat(roomPath);
-    return { success: true, key, content, updatedAt: stat.mtimeMs };
+    return { success: true, key, content, updatedAt: stat.mtimeMs, remote: false };
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     return { success: false, error: message };
@@ -838,14 +1082,26 @@ ipcMain.handle('devops:discussion:read', async (_event: IpcMainInvokeEvent, requ
 ipcMain.handle('devops:discussion:write', async (_event: IpcMainInvokeEvent, request: any) => {
   try {
     const key = sanitizeRoomKey(request?.key);
-    const roomPath = getDiscussionRoomPath(request?.projectPath || process.cwd(), key);
-    await fsExtra.ensureDir(path.dirname(roomPath));
-    await fsExtra.writeFile(roomPath, String(request?.content || ''), 'utf8');
-    const stat = await fsExtra.stat(roomPath);
-    return { success: true, key, updatedAt: stat.mtimeMs };
+    const content = String(request?.content || '');
+    const syncUrl = normalizeDiscussionSyncUrl(request?.syncUrl);
+    const local = await writeLocalDiscussionRoom(request?.projectPath || process.cwd(), key, content);
+    if (syncUrl) {
+      const remote = await writeRemoteDiscussionRoom(syncUrl, key, content);
+      return { success: true, key, updatedAt: remote.updatedAt, remote: true };
+    }
+    return { success: true, key, updatedAt: local.updatedAt, remote: false };
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     return { success: false, error: message };
+  }
+});
+
+ipcMain.handle('devops:discussion:sync-info', async () => {
+  try {
+    const info = await ensureInternalRoomSyncServer();
+    return { success: true, ...info };
+  } catch (error) {
+    return { success: false, error: error instanceof Error ? error.message : String(error) };
   }
 });
 
@@ -867,28 +1123,15 @@ ipcMain.handle('devops:env:detect', async (event: IpcMainInvokeEvent, request: a
       };
     }
 
-    // Perform project scan
     const scan = await performProjectScan(projectPath);
-    
-    // Call AI to analyze
-    const response = await aiClient.analyzeEnvironment(scan);
-    
-    if (!response?.success) {
-      return {
-        status: 'error',
-        requestId: 'unknown',
-        timestamp: Date.now(),
-        duration: 0,
-        error: response?.error || 'Failed to detect environment',
-      };
-    }
+    const analysis = buildDeterministicEnvironmentAnalysis(scan);
 
     return {
       status: 'success',
       requestId: 'unknown',
       timestamp: Date.now(),
       duration: 0,
-      ...response.data,
+      ...analysis,
     };
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
@@ -903,6 +1146,7 @@ ipcMain.handle('devops:env:detect', async (event: IpcMainInvokeEvent, request: a
 });
 
 ipcMain.handle('devops:env:setup', async (event: IpcMainInvokeEvent, request: any) => {
+  const started = Date.now();
   try {
     const { projectPath, envType } = request;
     
@@ -916,14 +1160,47 @@ ipcMain.handle('devops:env:setup', async (event: IpcMainInvokeEvent, request: an
       };
     }
 
+    const scan = await performProjectScan(projectPath);
+    const analysis = buildDeterministicEnvironmentAnalysis(scan);
+    const requestedCommand = String(envType || '').trim();
+    const step = analysis.setup_steps.find((item: any) => item.command === requestedCommand);
+    if (!step) {
+      return {
+        status: 'error',
+        requestId: 'unknown',
+        timestamp: Date.now(),
+        duration: Date.now() - started,
+        error: 'Setup command is not part of the generated environment plan',
+      };
+    }
+
+    const currentPlatform = process.platform === 'darwin' ? 'mac' : process.platform === 'win32' ? 'windows' : 'linux';
+    if (step.platform !== 'universal' && step.platform !== currentPlatform) {
+      return {
+        status: 'success',
+        requestId: 'unknown',
+        timestamp: Date.now(),
+        duration: Date.now() - started,
+        success: true,
+        stdout: `Skipped ${step.platform} step on ${currentPlatform}`,
+        commandsExecuted: [],
+      };
+    }
+
+    const output = execSync(step.command, {
+      cwd: projectPath,
+      encoding: 'utf8',
+      stdio: ['pipe', 'pipe', 'pipe'],
+    });
+
     return {
       status: 'success',
       requestId: 'unknown',
       timestamp: Date.now(),
-      duration: 0,
+      duration: Date.now() - started,
       success: true,
-      stdout: 'Environment setup initiated',
-      commandsExecuted: [],
+      stdout: output || 'Command completed',
+      commandsExecuted: [step.command],
     };
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
@@ -931,7 +1208,7 @@ ipcMain.handle('devops:env:setup', async (event: IpcMainInvokeEvent, request: an
       status: 'error',
       requestId: 'unknown',
       timestamp: Date.now(),
-      duration: 0,
+      duration: Date.now() - started,
       error: message,
     };
   }
@@ -955,7 +1232,30 @@ ipcMain.handle('devops:file:organize', async (event: IpcMainInvokeEvent, request
       };
     }
 
-    const organization = await generateOrganizerPlan(folderPath, instruction, mode === 'ai' ? 'ai' : 'professional');
+    if (mode === 'professional') {
+      const service = new FileOrganizerService(folderPath, undefined, undefined, {
+        featureFlags: { enabled: true, semanticIndexing: false, aiReasoning: false, autonomousApply: false, watchers: false },
+      });
+      const preview = await service.buildPreview(instruction);
+      const moves = preview.operations
+        .filter((operation) => operation.type === 'move' && operation.from && operation.to)
+        .map((operation) => ({ from: operation.from!, to: operation.to!, reason: operation.reason }));
+      const newDirs = Array.from(new Set(moves.map((move) => path.posix.dirname(move.to)).filter((dir) => dir && dir !== '.')));
+
+      return {
+        status: 'success',
+        requestId: 'unknown',
+        timestamp: Date.now(),
+        duration: 0,
+        redundant_files: [],
+        moves,
+        new_dirs_to_create: newDirs,
+        summary: preview.summary,
+        risk_level: preview.riskLevel,
+      };
+    }
+
+    const organization = await generateOrganizerPlan(folderPath, instruction, 'ai');
 
     return {
       status: 'success',
@@ -1400,6 +1700,165 @@ function getDiscussionRoomPath(projectPath: string, key: string): string {
   return path.join(projectPath, '.devops-lite', 'rooms', `${sanitizeRoomKey(key)}.md`);
 }
 
+function normalizeDiscussionSyncUrl(value: unknown): string {
+  const raw = String(value || process.env.DEVOPS_ROOM_SYNC_URL || '').trim();
+  if (!raw) return '';
+  const parsed = new URL(raw);
+  if (parsed.protocol !== 'https:' && parsed.protocol !== 'http:') {
+    throw new Error('Room sync URL must start with http:// or https://');
+  }
+  return parsed.toString().replace(/\/+$/, '');
+}
+
+let internalRoomSync: { server: any; url: string; port: number } | null = null;
+
+async function ensureInternalRoomSyncServer(): Promise<{ url: string; port: number }> {
+  if (internalRoomSync) return { url: internalRoomSync.url, port: internalRoomSync.port };
+  const http = require('http');
+  const os = require('os');
+  const dataDir = path.resolve(process.cwd(), '.devops-lite', 'remote-rooms');
+  await fsExtra.ensureDir(dataDir);
+
+  const roomFile = (key: string) => path.join(dataDir, `${sanitizeRoomKey(key)}.md`);
+  const server = http.createServer(async (req: any, res: any) => {
+    try {
+      const parsed = new URL(req.url || '/', 'http://localhost');
+      const match = parsed.pathname.match(/^\/rooms\/([^/]+)$/);
+      if (!match) {
+        res.writeHead(404, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'Not found' }));
+        return;
+      }
+      const key = decodeURIComponent(match[1]);
+      const file = roomFile(key);
+      if (req.method === 'GET') {
+        if (!(await fsExtra.pathExists(file))) {
+          res.writeHead(404, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ error: 'Room not found' }));
+          return;
+        }
+        const stat = await fsExtra.stat(file);
+        const content = await fsExtra.readFile(file, 'utf8');
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ key: sanitizeRoomKey(key), content, updatedAt: stat.mtimeMs }));
+        return;
+      }
+      if (req.method === 'PUT') {
+        let body = '';
+        req.on('data', (chunk: Buffer) => {
+          body += chunk.toString('utf8');
+          if (body.length > 1_000_000) req.destroy();
+        });
+        req.on('end', async () => {
+          const data = body ? JSON.parse(body) : {};
+          await fsExtra.writeFile(file, String(data.content || ''), 'utf8');
+          const stat = await fsExtra.stat(file);
+          res.writeHead(200, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ key: sanitizeRoomKey(key), updatedAt: stat.mtimeMs }));
+        });
+        return;
+      }
+      res.writeHead(405, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Method not allowed' }));
+    } catch (error) {
+      res.writeHead(500, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: error instanceof Error ? error.message : String(error) }));
+    }
+  });
+
+  const listen = (port: number) => new Promise<number>((resolve, reject) => {
+    const onError = (error: any) => {
+      server.off('listening', onListening);
+      reject(error);
+    };
+    const onListening = () => {
+      server.off('error', onError);
+      resolve(port);
+    };
+    server.once('error', onError);
+    server.once('listening', onListening);
+    server.listen(port, '0.0.0.0');
+  });
+
+  let port = 4777;
+  for (; port <= 4787; port++) {
+    try {
+      await listen(port);
+      break;
+    } catch (error: any) {
+      if (error?.code !== 'EADDRINUSE' || port === 4787) throw error;
+    }
+  }
+
+  const interfaces = os.networkInterfaces();
+  let host = '127.0.0.1';
+  for (const entries of Object.values(interfaces) as any[]) {
+    for (const entry of entries || []) {
+      if (entry.family === 'IPv4' && !entry.internal) {
+        host = entry.address;
+        break;
+      }
+    }
+    if (host !== '127.0.0.1') break;
+  }
+  internalRoomSync = { server, port, url: `http://${host}:${port}` };
+  return { url: internalRoomSync.url, port };
+}
+
+function remoteRoomUrl(syncUrl: string, key: string): string {
+  return `${syncUrl}/rooms/${encodeURIComponent(sanitizeRoomKey(key))}`;
+}
+
+async function readRemoteDiscussionRoom(syncUrl: string, key: string): Promise<{ content: string; updatedAt?: number }> {
+  const response = await fetch(remoteRoomUrl(syncUrl, key), {
+    method: 'GET',
+    headers: { Accept: 'application/json,text/plain' },
+  });
+  if (!response.ok) {
+    throw new Error(`Remote room read failed: HTTP ${response.status}`);
+  }
+  const text = await response.text();
+  try {
+    const data = JSON.parse(text);
+    return {
+      content: String(data.content || ''),
+      updatedAt: typeof data.updatedAt === 'number' ? data.updatedAt : Date.now(),
+    };
+  } catch {
+    return { content: text, updatedAt: Date.now() };
+  }
+}
+
+async function writeRemoteDiscussionRoom(syncUrl: string, key: string, content: string): Promise<{ updatedAt: number }> {
+  const response = await fetch(remoteRoomUrl(syncUrl, key), {
+    method: 'PUT',
+    headers: {
+      'Content-Type': 'application/json',
+      Accept: 'application/json',
+    },
+    body: JSON.stringify({ content }),
+  });
+  if (!response.ok) {
+    throw new Error(`Remote room write failed: HTTP ${response.status}`);
+  }
+  const text = await response.text();
+  if (!text) return { updatedAt: Date.now() };
+  try {
+    const data = JSON.parse(text);
+    return { updatedAt: typeof data.updatedAt === 'number' ? data.updatedAt : Date.now() };
+  } catch {
+    return { updatedAt: Date.now() };
+  }
+}
+
+async function writeLocalDiscussionRoom(projectPath: string, key: string, content: string): Promise<{ path: string; updatedAt: number }> {
+  const roomPath = getDiscussionRoomPath(projectPath, key);
+  await fsExtra.ensureDir(path.dirname(roomPath));
+  await fsExtra.writeFile(roomPath, content, 'utf8');
+  const stat = await fsExtra.stat(roomPath);
+  return { path: roomPath, updatedAt: stat.mtimeMs };
+}
+
 async function ensureDiscussionRoom(projectPath: string, key: string, create: boolean) {
   const roomPath = getDiscussionRoomPath(projectPath, key);
   await fsExtra.ensureDir(path.dirname(roomPath));
@@ -1462,6 +1921,105 @@ async function performProjectScan(rootDir: string): Promise<any> {
     has_cargo: files.some(f => f.name === 'Cargo.toml'),
     has_go_mod: files.some(f => f.name === 'go.mod'),
     config_files: configFiles,
+  };
+}
+
+function commandExists(command: string): boolean {
+  try {
+    const probe = process.platform === 'win32' ? `where ${command}` : `command -v ${command}`;
+    execSync(probe, { stdio: 'ignore' });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+function buildDeterministicEnvironmentAnalysis(scan: any): any {
+  const setupSteps: any[] = [];
+  const missingTools: string[] = [];
+  const frameworks: string[] = [];
+  const packageManagers: string[] = [];
+
+  const addMissingTool = (tool: string) => {
+    if (!commandExists(tool) && !missingTools.includes(tool)) {
+      missingTools.push(tool);
+    }
+  };
+
+  const addStep = (description: string, command: string, platform: 'windows' | 'mac' | 'linux' | 'universal' = 'universal', required = true) => {
+    setupSteps.push({
+      step: setupSteps.length + 1,
+      description,
+      command,
+      platform,
+      required,
+    });
+  };
+
+  if (scan.has_package_json) {
+    frameworks.push('nodejs');
+    packageManagers.push('npm');
+    addMissingTool('node');
+    addMissingTool('npm');
+    addStep('Install Node dependencies', 'npm install');
+    addStep('Run package tests', 'npm test', 'universal', false);
+    addStep('Start the project', 'npm start', 'universal', false);
+  }
+
+  if (scan.has_requirements) {
+    frameworks.push('python');
+    packageManagers.push('pip');
+    addMissingTool(process.platform === 'win32' ? 'python' : 'python3');
+    addStep('Create a virtual environment', process.platform === 'win32' ? 'python -m venv .venv' : 'python3 -m venv .venv', 'universal', false);
+    addStep('Install Python dependencies', process.platform === 'win32' ? '.venv\\Scripts\\pip install -r requirements.txt' : '.venv/bin/pip install -r requirements.txt');
+  }
+
+  if (scan.has_pom) {
+    frameworks.push('java-maven');
+    packageManagers.push('maven');
+    addMissingTool('java');
+    addMissingTool('mvn');
+    addStep('Resolve Maven dependencies and run tests', 'mvn test');
+  }
+
+  if (scan.has_cargo) {
+    frameworks.push('rust');
+    packageManagers.push('cargo');
+    addMissingTool('cargo');
+    addStep('Build the Rust project', 'cargo build');
+    addStep('Run Rust tests', 'cargo test', 'universal', false);
+  }
+
+  if (scan.has_go_mod) {
+    frameworks.push('go');
+    packageManagers.push('go');
+    addMissingTool('go');
+    addStep('Download Go modules', 'go mod download');
+    addStep('Run Go tests', 'go test ./...', 'universal', false);
+  }
+
+  if (setupSteps.length === 0) {
+    addStep('Inspect the project manually', 'dir', 'windows', false);
+    addStep('Inspect the project manually', 'ls -la', 'linux', false);
+  }
+
+  const detectedType = frameworks.length > 0 ? frameworks.join('+') : 'unknown';
+
+  return {
+    nodejs: frameworks.includes('nodejs'),
+    python: frameworks.includes('python'),
+    java: frameworks.includes('java-maven'),
+    frameworks,
+    packageManagers,
+    detectionConfidence: frameworks.length > 0 ? 90 : 45,
+    detected_type: detectedType,
+    missing_tools: missingTools,
+    setup_steps: setupSteps,
+    env_vars_needed: [],
+    estimated_minutes: Math.max(2, Math.min(15, setupSteps.length * 2)),
+    summary: frameworks.length > 0
+      ? `Detected ${detectedType} from project files. Generated setup steps without loading an LLM.`
+      : 'No common environment markers were detected. Generated a lightweight manual inspection plan.',
   };
 }
 

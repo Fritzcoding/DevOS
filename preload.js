@@ -10,6 +10,9 @@ const electronAPI = {
     fixCode: (code, language, mode = 'ai') => electron_1.ipcRenderer.invoke('devops:code-fixer:fix', { code, language, mode }),
     runCodeFixAgent: (request) => electron_1.ipcRenderer.invoke('devops:code-fixer:agent', request),
     readClipboard: () => electron_1.ipcRenderer.invoke('devops:clipboard:read'),
+    writeClipboard: (content) => electron_1.ipcRenderer.invoke('devops:clipboard:write', { content }),
+    getTestSamples: () => electron_1.ipcRenderer.invoke('devops:samples:list'),
+    resetTestSamples: () => electron_1.ipcRenderer.invoke('devops:samples:reset'),
     chatAI: (message, context) => electron_1.ipcRenderer.invoke('devops:chat:send', { message, context }),
     onCodeFixStream: (callback) => {
         const wrappedCallback = (_event, chunk) => callback(chunk);
@@ -26,6 +29,7 @@ const electronAPI = {
     },
     // File Operations
     readFile: (filePath) => electron_1.ipcRenderer.invoke('devops:file:read', { filePath }),
+    writeFile: (filePath, content) => electron_1.ipcRenderer.invoke('devops:file:write', { filePath, content }),
     organizeFolder: (folderPath, rules, mode = 'professional', instruction) => electron_1.ipcRenderer.invoke('devops:file:organize', { folderPath, rules, mode, instruction }),
     applyOrganization: (folderPath, organization) => electron_1.ipcRenderer.invoke('devops:file:apply-org', { folderPath, organization }),
     chatWithCodebase: (projectPath, message, history) => electron_1.ipcRenderer.invoke('devops:chat:codebase', { projectPath, message, history }),
@@ -64,10 +68,11 @@ const electronAPI = {
     },
     selectProjectPath: () => electron_1.ipcRenderer.invoke('devops:dialog:select-path'),
     getCurrentProjectPath: () => electron_1.ipcRenderer.invoke('devops:project:get-current-path'),
-    createDiscussionRoom: (projectPath) => electron_1.ipcRenderer.invoke('devops:discussion:create', { projectPath }),
-    joinDiscussionRoom: (projectPath, key) => electron_1.ipcRenderer.invoke('devops:discussion:join', { projectPath, key }),
-    readDiscussionRoom: (projectPath, key) => electron_1.ipcRenderer.invoke('devops:discussion:read', { projectPath, key }),
-    writeDiscussionRoom: (projectPath, key, content) => electron_1.ipcRenderer.invoke('devops:discussion:write', { projectPath, key, content }),
+    createDiscussionRoom: (projectPath, syncUrl) => electron_1.ipcRenderer.invoke('devops:discussion:create', { projectPath, syncUrl }),
+    joinDiscussionRoom: (projectPath, key, syncUrl) => electron_1.ipcRenderer.invoke('devops:discussion:join', { projectPath, key, syncUrl }),
+    readDiscussionRoom: (projectPath, key, syncUrl) => electron_1.ipcRenderer.invoke('devops:discussion:read', { projectPath, key, syncUrl }),
+    writeDiscussionRoom: (projectPath, key, content, syncUrl) => electron_1.ipcRenderer.invoke('devops:discussion:write', { projectPath, key, content, syncUrl }),
+    getDiscussionSyncInfo: () => electron_1.ipcRenderer.invoke('devops:discussion:sync-info'),
     // Legacy compatibility
     organizeFolder_legacy: (path, rules) => electron_1.ipcRenderer.invoke('devops:file:organize', { folderPath: path, rules }),
     applyOrganization_legacy: (path, org) => electron_1.ipcRenderer.invoke('devops:file:apply-org', { folderPath: path, organization: org }),

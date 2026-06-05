@@ -1,0 +1,8 @@
+{
+  "name": "code-fixer-sample",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "start": "node src/app.js"
+  }
+}

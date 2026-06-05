@@ -1,0 +1,3 @@
+ticket_id,customer,priority,status
+1001,Northwind,high,open
+1002,Contoso,medium,triaged

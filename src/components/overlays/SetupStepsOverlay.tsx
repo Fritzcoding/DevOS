@@ -4,7 +4,7 @@
  */
 
 import React, { useState } from 'react';
-import { ArrowLeft, Play, Check, AlertCircle, X } from 'lucide-react';
+import { ArrowLeft, Play, Check, X } from 'lucide-react';
 
 interface SetupStep {
   step: number;
@@ -36,6 +36,7 @@ const SetupStepsOverlay: React.FC<SetupStepsProps> = ({
   onBack,
 }) => {
   const [executing, setExecuting] = useState<number | null>(null);
+  const [runningAll, setRunningAll] = useState(false);
   const [completed, setCompleted] = useState<Set<number>>(new Set());
   const [output, setOutput] = useState<Map<number, string>>(new Map());
 
@@ -52,6 +53,27 @@ const SetupStepsOverlay: React.FC<SetupStepsProps> = ({
       setOutput((prev) => new Map(prev).set(step.step, `❌ Error: ${message}`));
     } finally {
       setExecuting(null);
+    }
+  };
+
+  const handleRunAll = async () => {
+    setRunningAll(true);
+    try {
+      for (const step of setup_steps.filter((item) => item.required)) {
+        if (completed.has(step.step)) continue;
+        setExecuting(step.step);
+        setOutput((prev) => new Map(prev).set(step.step, 'Executing...'));
+        const success = await onExecuteStep?.(step);
+        setCompleted((prev) => new Set(prev).add(step.step));
+        setOutput((prev) => new Map(prev).set(step.step, success ? 'Complete' : 'Failed'));
+        if (!success && step.required) break;
+      }
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      setOutput((prev) => new Map(prev).set(executing ?? 0, `Error: ${message}`));
+    } finally {
+      setExecuting(null);
+      setRunningAll(false);
     }
   };
 
@@ -178,7 +200,14 @@ const SetupStepsOverlay: React.FC<SetupStepsProps> = ({
         </div>
 
         {/* Footer */}
-        <div className="bg-gray-50 px-4 py-3 border-t flex justify-end">
+        <div className="bg-gray-50 px-4 py-3 border-t flex justify-end gap-2">
+          <button
+            onClick={handleRunAll}
+            disabled={runningAll || setup_steps.length === 0}
+            className="flex items-center gap-2 rounded bg-green-700 px-4 py-2 font-medium text-white transition hover:bg-green-800 disabled:opacity-50"
+          >
+            <Play className="h-4 w-4" /> {runningAll ? 'Running...' : 'Run Required'}
+          </button>
           <button
             onClick={onClose}
             className="px-4 py-2 bg-gray-600 text-white hover:bg-gray-700 rounded transition font-medium"

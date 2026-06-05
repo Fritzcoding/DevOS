@@ -1,18 +1,34 @@
 import React, { useState } from 'react';
 import { ArrowLeft, Brain, FolderTree, Play, X } from 'lucide-react';
+import type { TestSample } from '../../window';
 
 interface Props {
   projectPath: string;
+  samples?: TestSample[];
+  onUseSample?: (sample: TestSample) => void;
+  onResetSamples?: () => void;
   onClose: () => void;
   onBack?: () => void;
   onPlanReady: (plan: any) => void;
 }
 
-export const FileOrganizerWorkbench: React.FC<Props> = ({ projectPath, onClose, onBack, onPlanReady }) => {
+export const FileOrganizerWorkbench: React.FC<Props> = ({ projectPath, samples = [], onUseSample, onResetSamples, onClose, onBack, onPlanReady }) => {
   const [mode, setMode] = useState<'professional' | 'ai'>('professional');
   const [instruction, setInstruction] = useState('Sort this project into a professional structure while keeping source code imports safe.');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const organizerSamples = samples.filter((sample) => sample.feature === 'organizer');
+
+  const selectSample = (sample: TestSample) => {
+    onUseSample?.(sample);
+    if (sample.key === 'file-organizer-ai') {
+      setMode('ai');
+      setInstruction('Group financial spreadsheets and receipts into Financials, documents into Documents, and images into Images. Rename poorly formatted names to snake_case.');
+      return;
+    }
+    setMode('professional');
+    setInstruction('Sort this project into a professional structure while keeping source code imports safe.');
+  };
 
   const run = async () => {
     setLoading(true);
@@ -55,6 +71,30 @@ export const FileOrganizerWorkbench: React.FC<Props> = ({ projectPath, onClose, 
         <div className="space-y-4 p-5">
           <div className="rounded-md bg-slate-50 p-3 text-xs text-slate-600">
             {projectPath}
+          </div>
+
+          <div className="rounded-md border border-slate-200 bg-white p-3">
+            <div className="mb-2 flex items-center justify-between gap-2">
+              <span className="text-xs font-semibold uppercase tracking-wide text-slate-500">Test sample</span>
+              <button onClick={onResetSamples} className="rounded px-2 py-1 text-xs font-semibold text-slate-600 hover:bg-slate-100">Reset</button>
+            </div>
+            {organizerSamples.length ? (
+              <div className="grid gap-2">
+                {organizerSamples.map((sample) => (
+                  <button
+                    key={sample.key}
+                    onClick={() => selectSample(sample)}
+                    className="w-full rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-left hover:bg-slate-100"
+                    title={sample.path}
+                  >
+                    <div className="text-sm font-semibold text-slate-900">{sample.label}</div>
+                    <div className="truncate text-xs text-slate-500">{sample.description}</div>
+                  </button>
+                ))}
+              </div>
+            ) : (
+              <div className="rounded-md border border-dashed border-slate-200 px-3 py-2 text-xs text-slate-500">Samples not available.</div>
+            )}
           </div>
 
           <div className="grid grid-cols-2 gap-3">

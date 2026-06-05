@@ -1,0 +1,2 @@
+Confirm release notes
+Run smoke tests

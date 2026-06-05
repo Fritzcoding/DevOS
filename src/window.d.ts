@@ -23,19 +23,34 @@ import type {
   SetupEnvStreamChunk,
 } from './ipc-types';
 
+export type TestSample = {
+  key: string;
+  feature: 'code-fixer' | 'environment' | 'organizer';
+  label: string;
+  path: string;
+  description: string;
+  projectPath?: string;
+  filePath?: string;
+  scope?: 'clipboard' | 'file' | 'codebase';
+  warning?: string;
+};
+
 export interface ElectronAPI {
   // Code Fixing
   fixCode(code: string, language: string, mode?: 'manual' | 'ai'): Promise<FixCodeResponse>;
   runCodeFixAgent(request: {
     projectPath?: string;
     scope: 'clipboard' | 'file' | 'codebase';
-    mode?: 'ai';
+    mode?: 'manual' | 'ai';
     instruction: string;
     filePath?: string;
     code?: string;
     apply?: boolean;
   }): Promise<any>;
   readClipboard(): Promise<{ success: boolean; content?: string; error?: string }>;
+  writeClipboard(content: string): Promise<{ success: boolean; error?: string }>;
+  getTestSamples(): Promise<{ success: boolean; samples?: TestSample[]; error?: string }>;
+  resetTestSamples(): Promise<{ success: boolean; samples?: TestSample[]; error?: string }>;
   chatAI(message: string, context?: string): Promise<ChatResponse>;
   onCodeFixStream(callback: (chunk: CodeFixStreamChunk) => void): () => void;
 
@@ -46,6 +61,7 @@ export interface ElectronAPI {
 
   // File Operations
   readFile(filePath: string): Promise<ReadFileResponse>;
+  writeFile(filePath: string, content: string): Promise<{ status: 'success' | 'error'; bytesWritten?: number; error?: string }>;
   organizeFolder(folderPath: string, rules?: any, mode?: 'professional' | 'ai', instruction?: string): Promise<OrganizeFileResponse>;
   applyOrganization(folderPath: string, organization: any): Promise<OrganizeFileResponse>;
   chatWithCodebase(projectPath: string, message: string, history?: Array<{ role: 'user' | 'assistant'; content: string }>): Promise<any>;
@@ -77,10 +93,11 @@ export interface ElectronAPI {
   // Project Path Selection
   selectProjectPath(): Promise<{ success: boolean; path: string | null; error?: string; canceled?: boolean }>;
   getCurrentProjectPath(): Promise<{ success: boolean; path: string | null; error?: string }>;
-  createDiscussionRoom(projectPath: string): Promise<{ success: boolean; key?: string; content?: string; path?: string; error?: string }>;
-  joinDiscussionRoom(projectPath: string, key: string): Promise<{ success: boolean; key?: string; content?: string; path?: string; error?: string }>;
-  readDiscussionRoom(projectPath: string, key: string): Promise<{ success: boolean; key?: string; content?: string; updatedAt?: number; error?: string }>;
-  writeDiscussionRoom(projectPath: string, key: string, content: string): Promise<{ success: boolean; key?: string; updatedAt?: number; error?: string }>;
+  createDiscussionRoom(projectPath: string, syncUrl?: string): Promise<{ success: boolean; key?: string; content?: string; path?: string; updatedAt?: number; remote?: boolean; error?: string }>;
+  joinDiscussionRoom(projectPath: string, key: string, syncUrl?: string): Promise<{ success: boolean; key?: string; content?: string; path?: string; updatedAt?: number; remote?: boolean; error?: string }>;
+  readDiscussionRoom(projectPath: string, key: string, syncUrl?: string): Promise<{ success: boolean; key?: string; content?: string; updatedAt?: number; remote?: boolean; error?: string }>;
+  writeDiscussionRoom(projectPath: string, key: string, content: string, syncUrl?: string): Promise<{ success: boolean; key?: string; updatedAt?: number; remote?: boolean; error?: string }>;
+  getDiscussionSyncInfo(): Promise<{ success: boolean; url?: string; port?: number; error?: string }>;
 
   // Legacy (backward compatibility)
   organizeFolder_legacy(path: string, rules: any): Promise<any>;

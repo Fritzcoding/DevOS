@@ -323,17 +323,14 @@ ${JSON.stringify(context, null, 2)}`;
                 fixed = fixed.replace(/\)(?!\s*[,;:\)}\]])\n/g, ');\n');
                 changes.push('Added missing semicolons');
             }
-            // Fix missing closing braces
-            const openBraces = (fixed.match(/\{/g) || []).length;
-            const closeBraces = (fixed.match(/\}/g) || []).length;
-            if (openBraces > closeBraces) {
-                fixed += '\n' + '}'.repeat(openBraces - closeBraces);
-                changes.push(`Added ${openBraces - closeBraces} missing closing brace(s)`);
-            }
             // Fix common typos: consol.log -> console.log
             if (fixed.includes('consol.log')) {
                 fixed = fixed.replace(/consol\.log/g, 'console.log');
                 changes.push('Fixed console.log typo');
+            }
+            if (fixed.includes('System.oot.')) {
+                fixed = fixed.replace(/System\.oot\./g, 'System.out.');
+                changes.push('Fixed System.out typo');
             }
             // Fix missing commas in function calls
             const beforeCommaFix = fixed;
@@ -344,8 +341,31 @@ ${JSON.stringify(context, null, 2)}`;
             // Fix missing equals in assignments
             const beforeEqualsFix = fixed;
             fixed = fixed.replace(/const\s+(\w+)\s+(\w+)\s*=/g, 'const $1 = $2');
+            fixed = fixed.replace(/const\s+(\w+)\s+([A-Za-z_$][\w$]*\s*\()/g, 'const $1 = $2');
             if (fixed !== beforeEqualsFix) {
                 changes.push('Fixed missing equals in const assignment');
+            }
+            const beforeReturnSemicolons = fixed;
+            fixed = fixed.replace(/^(\s*return\s+[^;\n{}]+)$/gm, '$1;');
+            if (fixed !== beforeReturnSemicolons) {
+                changes.push('Added missing return semicolons');
+            }
+            const beforeJavaStatementSemicolons = fixed;
+            fixed = fixed.replace(/^(\s*System\.out\.[^;\n{}]+)$/gm, '$1;');
+            fixed = fixed.replace(/^(\s*[A-Za-z_$][\w$<>\[\]]*\s+[A-Za-z_$][\w$]*\s*=\s*new\s+[^;\n{}]+)$/gm, '$1;');
+            if (fixed !== beforeJavaStatementSemicolons) {
+                changes.push('Added missing Java statement semicolons');
+            }
+            const beforeBlockRepair = fixed;
+            fixed = this.closeObviousMissingFunctionBlocks(fixed);
+            if (fixed !== beforeBlockRepair) {
+                changes.push('Closed unterminated function blocks');
+            }
+            const openBraces = (fixed.match(/\{/g) || []).length;
+            const closeBraces = (fixed.match(/\}/g) || []).length;
+            if (openBraces > closeBraces) {
+                fixed += '\n' + '}'.repeat(openBraces - closeBraces);
+                changes.push(`Added ${openBraces - closeBraces} missing closing brace(s)`);
             }
             const explanation = changes.length > 0
                 ? `Fixed ${changes.length} issue(s): ${changes.join(', ')}`
@@ -370,6 +390,41 @@ ${JSON.stringify(context, null, 2)}`;
                 errorType: 'UNKNOWN',
             };
         }
+    }
+    closeObviousMissingFunctionBlocks(code) {
+        const lines = code.split('\n');
+        const repaired = [];
+        let functionDepth = 0;
+        let functionIndent = '';
+        const count = (line, char) => (line.match(new RegExp(`\\${char}`, 'g')) || []).length;
+        const startsNewTopLevelBlock = (line) => /^(?:export\s+)?(?:async\s+)?function\b|^(?:export\s+)?(?:public\s+)?class\b/.test(line);
+        const startsTopLevelStatement = (line) => /^(?:const|let|var|console\.log|System\.out\.|[A-Za-z_$][\w$]*\()/.test(line);
+        for (const line of lines) {
+            const trimmed = line.trim();
+            const indent = line.match(/^\s*/)?.[0] || '';
+            const topLevel = indent.length === 0;
+            if (functionDepth > 0 && topLevel && trimmed && (startsNewTopLevelBlock(trimmed) || startsTopLevelStatement(trimmed))) {
+                repaired.push(`${functionIndent}}`);
+                functionDepth = 0;
+                functionIndent = '';
+            }
+            repaired.push(line);
+            if (/^\s*(?:export\s+)?(?:async\s+)?function\b.*\{\s*$/.test(line)) {
+                functionDepth = 1;
+                functionIndent = indent;
+            }
+            else if (functionDepth > 0) {
+                functionDepth += count(line, '{') - count(line, '}');
+                if (functionDepth <= 0) {
+                    functionDepth = 0;
+                    functionIndent = '';
+                }
+            }
+        }
+        if (functionDepth > 0) {
+            repaired.push(`${functionIndent}}`);
+        }
+        return repaired.join('\n');
     }
     /**
      * Environment Builder - analyzes project, returns setup steps

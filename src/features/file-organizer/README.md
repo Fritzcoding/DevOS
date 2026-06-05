@@ -39,3 +39,14 @@ Filesystem event or manual request
 ## Current Integration
 
 The existing `devops:file:organize` IPC path generates a preview plan. The existing `devops:file:apply-org` IPC path delegates to `SafeFileOperationExecutor` for validation, sandboxing, atomic moves, and rollback logging.
+
+## Resettable Test Fixture
+
+The repo includes a mutable fixture workflow for organizer safety checks:
+
+```bash
+npm run reset:test-fixtures
+npm run test
+```
+
+Fixture source lives in `tests/fixtures/pristine/organizer-mixed-files`. Tests copy it to `tests/fixtures/workdir/organizer-mixed-files`, then verify preview generation, dry-run behavior, apply behavior, and rollback restoration. The workdir is ignored and can be deleted or reset at any time.

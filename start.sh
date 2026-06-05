@@ -6,12 +6,16 @@ echo "DevOps Lite - Desktop App Launcher"
 echo "===================================="
 echo ""
 
+if ! npm run preflight; then
+    exit 1
+fi
+
 # Check if node_modules exists
 if [ ! -d "node_modules" ]; then
-    echo "Installing dependencies..."
-    npm install
+    echo "Installing dependencies and compiling Electron entrypoints..."
+    npm run setup
     if [ $? -ne 0 ]; then
-        echo "Failed to install dependencies"
+        echo "Failed to set up DevOps Lite"
         exit 1
     fi
 fi
@@ -19,29 +23,8 @@ fi
 # Check if .env.local exists
 if [ ! -f ".env.local" ]; then
     echo ""
-    echo "WARNING: .env.local not found!"
-    echo ""
-    echo "Please create .env.local with your Gemini API key:"
-    echo "GEMINI_API_KEY=your_api_key_here"
-    echo ""
-    echo "Get your free API key from: https://ai.google.dev/"
-    echo ""
-    echo "Creating template..."
-    
-    cat > ".env.local" <<EOF
-# Gemini API Key - Get one from https://ai.google.dev/
-GEMINI_API_KEY=your_gemini_api_key_here
-
-# Optional: App URL for development
-APP_URL=http://localhost:5173
-EOF
-    
-    echo ""
-    echo "Template created at .env.local"
-    echo "Please edit it with your Gemini API key before running again."
-    echo ""
-    sleep 5
-    exit 0
+    echo ".env.local not found. This is OK if you configure AI in the app or use local Ollama."
+    echo "To use env-file cloud setup, copy .env.example to .env.local and add GEMINI_API_KEY."
 fi
 
 echo "Starting DevOps Lite..."
@@ -60,8 +43,8 @@ npm run dev
 if [ $? -ne 0 ]; then
     echo ""
     echo "Error running the app. Check:"
-    echo "1. Node.js is installed (node --version)"
-    echo "2. .env.local has valid GEMINI_API_KEY"
-    echo "3. Port 5173 is not in use"
+    echo "1. Node.js 20.19+ is installed (node --version)"
+    echo "2. Dependencies were installed with npm run setup"
+    echo "3. Port 5173 is available, or Vite selected another port shown above"
     echo ""
 fi

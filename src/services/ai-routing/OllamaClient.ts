@@ -63,23 +63,47 @@ export class OllamaClient {
   }
 
   async execute(settings: AISettings, request: PromptRequest): Promise<string> {
-    const response = await fetch(`${settings.local.baseUrl}/api/generate`, {
+    const prompt = [request.systemPrompt, request.userPrompt].filter(Boolean).join('\n\n');
+    const maxTokens = request.maxTokens ?? 4096;
+    const payload = {
+      model: settings.local.model,
+      prompt,
+      stream: false,
+      keep_alive: '30s',
+      options: {
+        temperature: request.temperature ?? 0.3,
+        num_predict: maxTokens,
+        num_ctx: Math.min(4096, Math.max(1024, maxTokens * 2)),
+      },
+    };
+
+    let response = await fetch(`${settings.local.baseUrl}/api/generate`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        model: settings.local.model,
-        prompt: [request.systemPrompt, request.userPrompt].filter(Boolean).join('\n\n'),
-        stream: false,
-        options: {
-          temperature: request.temperature ?? 0.3,
-          num_predict: request.maxTokens ?? 4096,
-        },
-      }),
+      body: JSON.stringify(payload),
     });
 
-    const body = await response.text();
+    let body = await response.text();
+    if (!response.ok && this.isGpuMemoryError(body)) {
+      response = await fetch(`${settings.local.baseUrl}/api/generate`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          ...payload,
+          keep_alive: '0s',
+          options: {
+            ...payload.options,
+            num_ctx: 2048,
+            num_predict: Math.min(maxTokens, 1024),
+            num_gpu: 0,
+          },
+        }),
+      });
+      body = await response.text();
+    }
+
     if (!response.ok) {
-      throw new Error(`Ollama request failed (${response.status}): ${body.slice(0, 500)}`);
+      throw new Error(this.formatGenerateError(response.status, body));
     }
 
     const data = JSON.parse(body);
@@ -266,6 +290,22 @@ export class OllamaClient {
   private isMissingCliError(message: string): boolean {
     const lower = message.toLowerCase();
     return lower.includes('not recognized') || lower.includes('enoent') || lower.includes('command not found');
+  }
+
+  private isGpuMemoryError(body: string): boolean {
+    const lower = body.toLowerCase();
+    return lower.includes('cudamalloc') || lower.includes('out of memory') || lower.includes('cuda');
+  }
+
+  private formatGenerateError(status: number, body: string): string {
+    if (this.isGpuMemoryError(body)) {
+      return [
+        `Ollama request failed (${status}) because the selected local model ran out of GPU memory.`,
+        'Environment Builder no longer needs Ollama; for AI chat/code tasks, choose a smaller local model or switch AI Settings to Cloud AI.',
+        `Original Ollama response: ${body.slice(0, 300)}`,
+      ].join(' ');
+    }
+    return `Ollama request failed (${status}): ${body.slice(0, 500)}`;
   }
 
   private formatPullError(code: number | null, output: string): string {

@@ -16,6 +16,15 @@ const electronAPI: ElectronAPI = {
 
   readClipboard: () =>
     ipcRenderer.invoke('devops:clipboard:read'),
+
+  writeClipboard: (content: string) =>
+    ipcRenderer.invoke('devops:clipboard:write', { content }),
+
+  getTestSamples: () =>
+    ipcRenderer.invoke('devops:samples:list'),
+
+  resetTestSamples: () =>
+    ipcRenderer.invoke('devops:samples:reset'),
   
   chatAI: (message: string, context?: string) =>
     ipcRenderer.invoke('devops:chat:send', { message, context }),
@@ -42,6 +51,9 @@ const electronAPI: ElectronAPI = {
   // File Operations
   readFile: (filePath: string) =>
     ipcRenderer.invoke('devops:file:read', { filePath }),
+
+  writeFile: (filePath: string, content: string) =>
+    ipcRenderer.invoke('devops:file:write', { filePath, content }),
   
   organizeFolder: (folderPath: string, rules?: any, mode: 'professional' | 'ai' = 'professional', instruction?: string) =>
     ipcRenderer.invoke('devops:file:organize', { folderPath, rules, mode, instruction }),
@@ -123,17 +135,20 @@ const electronAPI: ElectronAPI = {
   getCurrentProjectPath: () =>
     ipcRenderer.invoke('devops:project:get-current-path'),
 
-  createDiscussionRoom: (projectPath: string) =>
-    ipcRenderer.invoke('devops:discussion:create', { projectPath }),
+  createDiscussionRoom: (projectPath: string, syncUrl?: string) =>
+    ipcRenderer.invoke('devops:discussion:create', { projectPath, syncUrl }),
 
-  joinDiscussionRoom: (projectPath: string, key: string) =>
-    ipcRenderer.invoke('devops:discussion:join', { projectPath, key }),
+  joinDiscussionRoom: (projectPath: string, key: string, syncUrl?: string) =>
+    ipcRenderer.invoke('devops:discussion:join', { projectPath, key, syncUrl }),
 
-  readDiscussionRoom: (projectPath: string, key: string) =>
-    ipcRenderer.invoke('devops:discussion:read', { projectPath, key }),
+  readDiscussionRoom: (projectPath: string, key: string, syncUrl?: string) =>
+    ipcRenderer.invoke('devops:discussion:read', { projectPath, key, syncUrl }),
 
-  writeDiscussionRoom: (projectPath: string, key: string, content: string) =>
-    ipcRenderer.invoke('devops:discussion:write', { projectPath, key, content }),
+  writeDiscussionRoom: (projectPath: string, key: string, content: string, syncUrl?: string) =>
+    ipcRenderer.invoke('devops:discussion:write', { projectPath, key, content, syncUrl }),
+
+  getDiscussionSyncInfo: () =>
+    ipcRenderer.invoke('devops:discussion:sync-info'),
 
   // Legacy compatibility
   organizeFolder_legacy: (path: string, rules: any) =>

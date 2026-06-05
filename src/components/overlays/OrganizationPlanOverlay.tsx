@@ -31,7 +31,7 @@ interface OrganizationPlanProps {
     violations?: Array<{ rule: string; from: string; to: string; severity: 'low' | 'medium' | 'high'; reason: string }>;
     confidence_overview?: string;
   };
-  onApply?: () => Promise<boolean>;
+  onApply?: () => Promise<boolean | { success?: boolean; status?: string; [key: string]: any }>;
   onCancel?: () => void;
   onBack?: () => void;
 }
@@ -48,12 +48,14 @@ const OrganizationPlanOverlay: React.FC<OrganizationPlanProps> = ({
   onBack,
 }) => {
   const [expandedSections, setExpandedSections] = useState({
+    layout: true,
     redundant: true,
     moves: true,
     dirs: false,
   });
   const [applying, setApplying] = useState(false);
   const [result, setResult] = useState<'success' | 'error' | null>(null);
+  const [applyDetails, setApplyDetails] = useState<any>(null);
 
   const toggleSection = (section: keyof typeof expandedSections) => {
     setExpandedSections((prev) => ({
@@ -66,7 +68,13 @@ const OrganizationPlanOverlay: React.FC<OrganizationPlanProps> = ({
     setApplying(true);
     try {
       const success = await onApply?.();
-      setResult(success ? 'success' : 'error');
+      const normalizedSuccess = typeof success === 'boolean'
+        ? success
+        : Boolean(success?.success || success?.status === 'success');
+      if (typeof success === 'object') {
+        setApplyDetails(success);
+      }
+      setResult(normalizedSuccess ? 'success' : 'error');
     } catch (error) {
       setResult('error');
     } finally {
@@ -82,7 +90,7 @@ const OrganizationPlanOverlay: React.FC<OrganizationPlanProps> = ({
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
-      <div className="bg-white rounded-lg shadow-2xl max-w-2xl max-h-[90vh] overflow-hidden flex flex-col">
+      <div className="bg-white rounded-lg shadow-2xl w-full max-w-5xl max-h-[90vh] overflow-hidden flex flex-col">
         {/* Header */}
         <div className="bg-gradient-to-r from-purple-600 to-blue-600 text-white p-4 flex justify-between items-center">
           <div>
@@ -126,6 +134,97 @@ const OrganizationPlanOverlay: React.FC<OrganizationPlanProps> = ({
               </div>
             </div>
           </div>
+
+          {/* Before / After Layout */}
+          <div className="mb-3">
+            <button
+              onClick={() => toggleSection('layout')}
+              className="w-full flex items-center justify-between p-3 bg-slate-50 hover:bg-slate-100 border border-slate-200 rounded-lg transition font-medium text-slate-800"
+            >
+              <div>{result === 'success' ? 'Applied Before / After' : 'Planned Before / After'}</div>
+              {expandedSections.layout ? <ChevronUp className="w-5 h-5" /> : <ChevronDown className="w-5 h-5" />}
+            </button>
+            {expandedSections.layout && (
+              <div className="mt-2 grid grid-cols-2 gap-3">
+                <div className="rounded-lg border border-rose-200 bg-rose-50">
+                  <div className="border-b border-rose-200 px-3 py-2 text-xs font-semibold uppercase tracking-wide text-rose-700">Before</div>
+                  <div className="max-h-56 space-y-2 overflow-auto p-3">
+                    {moves.length === 0 ? (
+                      <div className="text-sm text-rose-700">No moved files.</div>
+                    ) : (
+                      moves.map((move, idx) => (
+                        <div key={`${move.from}-${idx}`} className="rounded border border-rose-100 bg-white px-2 py-2">
+                          <div className="font-mono text-xs text-rose-700 break-all">{move.from}</div>
+                          <div className="mt-1 text-[11px] text-rose-600">{result === 'success' ? 'Moved from this location' : 'Original location'}</div>
+                        </div>
+                      ))
+                    )}
+                  </div>
+                </div>
+                <div className="rounded-lg border border-emerald-200 bg-emerald-50">
+                  <div className="border-b border-emerald-200 px-3 py-2 text-xs font-semibold uppercase tracking-wide text-emerald-700">After</div>
+                  <div className="max-h-56 space-y-2 overflow-auto p-3">
+                    {moves.length === 0 ? (
+                      <div className="text-sm text-emerald-700">No destination changes.</div>
+                    ) : (
+                      moves.map((move, idx) => (
+                        <div key={`${move.to}-${idx}`} className="rounded border border-emerald-100 bg-white px-2 py-2">
+                          <div className="font-mono text-xs text-emerald-700 break-all">{move.to}</div>
+                          <div className="mt-1 text-[11px] text-emerald-600">{result === 'success' ? 'Now located here' : 'Planned location'}</div>
+                        </div>
+                      ))
+                    )}
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+
+          {result === 'success' && (
+            <div className="mb-3 rounded-lg border border-emerald-200 bg-emerald-50 p-3">
+              <div className="flex items-center gap-2 text-sm font-semibold text-emerald-800">
+                <Check className="h-4 w-4" />
+                Applied filesystem result
+              </div>
+              <div className="mt-2 grid grid-cols-3 gap-2 text-xs text-emerald-800">
+                <div className="rounded border border-emerald-100 bg-white p-2">
+                  <div className="font-semibold">{applyDetails?.filesProcessed ?? moves.length}</div>
+                  <div>Files moved</div>
+                </div>
+                <div className="rounded border border-emerald-100 bg-white p-2">
+                  <div className="font-semibold">{applyDetails?.directoriesProcessed ?? new_dirs_to_create.length}</div>
+                  <div>Directories created</div>
+                </div>
+                <div className="rounded border border-emerald-100 bg-white p-2">
+                  <div className="font-semibold">{applyDetails?.operationsProcessed ?? moves.length + new_dirs_to_create.length}</div>
+                  <div>Operations applied</div>
+                </div>
+              </div>
+              {applyDetails?.rollbackLogPath && (
+                <div className="mt-2 break-all rounded border border-emerald-100 bg-white p-2 font-mono text-[11px] text-emerald-700">
+                  Rollback log: {applyDetails.rollbackLogPath}
+                </div>
+              )}
+              <div className="mt-2 max-h-44 overflow-auto rounded border border-emerald-100 bg-white">
+                {moves.length === 0 ? (
+                  <div className="p-2 text-xs text-emerald-700">No file moves were applied.</div>
+                ) : (
+                  moves.map((move, idx) => (
+                    <div key={`${move.from}-${move.to}-${idx}`} className="grid grid-cols-[minmax(0,1fr)_minmax(0,1fr)] gap-2 border-b border-emerald-50 p-2 text-xs last:border-b-0">
+                      <div className="min-w-0">
+                        <div className="font-semibold text-rose-700">Before</div>
+                        <div className="break-all font-mono text-slate-700">{move.from}</div>
+                      </div>
+                      <div className="min-w-0">
+                        <div className="font-semibold text-emerald-700">After</div>
+                        <div className="break-all font-mono text-slate-700">{move.to}</div>
+                      </div>
+                    </div>
+                  ))
+                )}
+              </div>
+            </div>
+          )}
 
           {/* Redundant Files */}
           <div className="mb-3">
@@ -238,7 +337,7 @@ const OrganizationPlanOverlay: React.FC<OrganizationPlanProps> = ({
           {result === 'success' && (
             <div className="bg-green-50 border border-green-300 text-green-700 p-3 rounded-lg flex items-center gap-2">
               <Check className="w-5 h-5" />
-              <div>✓ Organization completed successfully. Rollback metadata is saved in .devops-lite-organizer.</div>
+              <div>Organization completed successfully. Review the Applied Before / After section above for the final destinations.</div>
             </div>
           )}
           {result === 'error' && (

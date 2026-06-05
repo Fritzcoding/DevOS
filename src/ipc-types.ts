@@ -59,6 +59,7 @@ export interface CodeFixAgentResponse extends IPCResponseBase {
   summary?: string;
   confidence?: number;
   changes?: CodeFixChange[];
+  fileDiffs?: Array<{ path: string; original: string; fixed: string; changes: CodeFixChange[] }>;
   filesScanned?: number;
   filesChanged?: number;
   applied?: boolean;

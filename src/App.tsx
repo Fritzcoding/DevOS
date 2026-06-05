@@ -3,6 +3,7 @@ import Shimeji from "./components/Shimeji";
 import FeatureMenu from "./components/FeatureMenu";
 import DiffViewer from "./components/overlays/DiffViewer";
 import SetupStepsOverlay from "./components/overlays/SetupStepsOverlay";
+import EnvironmentBuilderWorkbench from "./components/overlays/EnvironmentBuilderWorkbench";
 import OrganizationPlanOverlay from "./components/overlays/OrganizationPlanOverlay";
 import PathInputModal from "./components/modals/PathInputModal";
 import HelpModal from "./components/modals/HelpModal";
@@ -12,10 +13,10 @@ import FileOrganizerWorkbench from "./components/overlays/FileOrganizerWorkbench
 import CodebaseChatOverlay from "./components/overlays/CodebaseChatOverlay";
 import DiscussionRoomOverlay from "./components/overlays/DiscussionRoomOverlay";
 import { eventBus } from "./core/event-bus";
+import type { TestSample } from "./window";
 
 type FeatureId = "code-fixer" | "environment" | "organizer" | "chat" | "room" | "help" | "settings";
 type PanelSize = { width: number; height: number };
-
 const MASCOT_WINDOW_SIZE: PanelSize = { width: 96, height: 96 };
 const CONTEXT_MENU_WINDOW_SIZE: PanelSize = { width: 260, height: 260 };
 const MENU_WINDOW_SIZE: PanelSize = { width: 460, height: 640 };
@@ -66,6 +67,7 @@ export default function App() {
 
   // Environment Builder State
   const [showSetupSteps, setShowSetupSteps] = useState(false);
+  const [showEnvironmentWorkbench, setShowEnvironmentWorkbench] = useState(false);
   const [setupStepsData, setSetupStepsData] = useState<any>(null);
 
   // File Organizer State
@@ -78,10 +80,11 @@ export default function App() {
   const [showHelpModal, setShowHelpModal] = useState(false);
   const [showAISettings, setShowAISettings] = useState(false);
   const [aiStatus, setAIStatus] = useState<any>(null);
+  const [testSamples, setTestSamples] = useState<TestSample[]>([]);
   const [panelSize, setPanelSize] = useState<PanelSize>(() => loadPanelSize());
   const [lastPanel, setLastPanel] = useState<FeatureId | null>(() => {
     const saved = localStorage.getItem(LAST_PANEL_KEY);
-    return saved === "code-fixer" || saved === "organizer" || saved === "chat" || saved === "room" || saved === "help" || saved === "settings"
+    return saved === "code-fixer" || saved === "environment" || saved === "organizer" || saved === "chat" || saved === "room" || saved === "help" || saved === "settings"
       ? saved
       : null;
   });
@@ -123,12 +126,30 @@ export default function App() {
     refreshAIStatus();
   }, []);
 
+  const refreshTestSamples = useCallback(async () => {
+    try {
+      const result = await window.electronAPI?.getTestSamples?.();
+      if (result?.success && Array.isArray(result.samples)) {
+        setTestSamples(result.samples);
+      }
+    } catch (error) {
+      console.debug("[App] Test sample discovery skipped:", error);
+    }
+  }, []);
+
   useEffect(() => {
-    if (restoredPanelRef.current || !projectPath || !lastPanel) return;
+    refreshTestSamples();
+  }, [refreshTestSamples]);
+
+  useEffect(() => {
+    if (restoredPanelRef.current || !lastPanel) return;
+    if (!projectPath && (lastPanel === "chat" || lastPanel === "room" || lastPanel === "organizer")) return;
     restoredPanelRef.current = true;
     if (lastPanel === "chat") {
       setHasOpenedCodebaseChat(true);
       setShowCodebaseChat(true);
+    } else if (lastPanel === "environment") {
+      setShowEnvironmentWorkbench(true);
     } else if (lastPanel === "room") {
       setShowDiscussionRoom(true);
     } else if (lastPanel === "organizer") {
@@ -150,6 +171,7 @@ export default function App() {
 
   const anyPanelOpen =
     showCodeFixerAgent ||
+    showEnvironmentWorkbench ||
     showOrganizerWorkbench ||
     showCodebaseChat ||
     showDiscussionRoom ||
@@ -165,6 +187,7 @@ export default function App() {
   const activeWindowSize = () => {
     if (showCodebaseChat) return panelSize;
     if (showCodeFixerAgent) return CODE_FIXER_PANEL_SIZE;
+    if (showEnvironmentWorkbench) return ENV_PANEL_SIZE;
     if (showAISettings) return SETTINGS_PANEL_SIZE;
     if (showHelpModal) return HELP_PANEL_SIZE;
     if (showDiscussionRoom) return ROOM_PANEL_SIZE;
@@ -192,6 +215,7 @@ export default function App() {
     panelSize,
     showCodebaseChat,
     showCodeFixerAgent,
+    showEnvironmentWorkbench,
     showAISettings,
     showHelpModal,
     showDiscussionRoom,
@@ -279,6 +303,29 @@ export default function App() {
     }
   };
 
+  const handleUseSample = (sample: TestSample) => {
+    saveProjectPath(sample.projectPath || sample.path);
+  };
+
+  const handleResetSamples = async () => {
+    try {
+      const result = await window.electronAPI?.resetTestSamples?.();
+      if (result?.success) {
+        setTestSamples(result.samples || []);
+        const activeSample = result.samples?.find((sample: TestSample) => (sample.projectPath || sample.path) === projectPath);
+        if (!activeSample && projectPath.includes("samples")) {
+          setProjectPath("");
+          localStorage.removeItem("devops-project-path");
+        }
+        return;
+      }
+      setError(result?.error || "Could not reset test samples");
+    } catch (error) {
+      console.error("[App] Failed to reset samples:", error);
+      setError("Could not reset test samples");
+    }
+  };
+
   // ============================================
   // FEATURE HANDLERS
   // ============================================
@@ -290,39 +337,9 @@ export default function App() {
   };
 
   const handleEnvironmentBuilder = async () => {
-    setIsLoading(true);
-    setError(null);
-    try {
-      if (!projectPath) {
-        setError("Please select a project path first");
-        setIsLoading(false);
-        return;
-      }
-
-      // Detect environment
-      const result = await window.electronAPI?.detectEnv?.(projectPath);
-      if (result?.status === 'error') {
-        setError(result?.error || 'Failed to detect environment');
-        setIsLoading(false);
-        return;
-      }
-
-      setSetupStepsData({
-        detected_type: result?.detected_type || 'unknown',
-        missing_tools: result?.missing_tools || [],
-        setup_steps: result?.setup_steps || [],
-        env_vars_needed: result?.env_vars_needed || [],
-        estimated_minutes: result?.estimated_minutes || 0,
-      });
-      setShowSetupSteps(true);
-    } catch (err) {
-      const message = err instanceof Error ? err.message : 'Unknown error';
-      setError(message);
-      console.error("[App] Environment builder error:", err);
-    } finally {
-      setIsLoading(false);
-      setMenuOpen(false);
-    }
+    rememberPanel("environment");
+    setShowEnvironmentWorkbench(true);
+    setMenuOpen(false);
   };
 
   const handleFileOrganizer = async () => {
@@ -377,7 +394,7 @@ export default function App() {
     }
   };
 
-  const handleApplyOrganization = async (): Promise<boolean> => {
+  const handleApplyOrganization = async (): Promise<any> => {
     if (!projectPath || !organizationPlan) return false;
     
     try {
@@ -387,11 +404,9 @@ export default function App() {
       );
       if (result?.status === 'error') {
         setError(result?.error || 'Failed to apply organization');
-        return false;
+        return result;
       }
-      alert(`Successfully organized! Moved ${result?.filesProcessed || 0} files. Rollback metadata was saved in .devops-lite-organizer.`);
-      setShowOrganizationPlan(false);
-      return true;
+      return result;
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Unknown error';
       setError(message);
@@ -403,6 +418,7 @@ export default function App() {
     setMenuOpen(false);
     setShowPathModal(false);
     setShowCodeFixerAgent(false);
+    setShowEnvironmentWorkbench(false);
     setShowOrganizerWorkbench(false);
     setShowCodebaseChat(false);
     setShowDiscussionRoom(false);
@@ -488,14 +504,36 @@ export default function App() {
       {showCodeFixerAgent && (
         <CodeFixerAgentOverlay
           projectPath={projectPath}
+          samples={testSamples}
+          onUseSample={handleUseSample}
+          onResetSamples={handleResetSamples}
           onClose={() => setShowCodeFixerAgent(false)}
           onBack={handleBackToMenu}
+        />
+      )}
+
+      {showEnvironmentWorkbench && (
+        <EnvironmentBuilderWorkbench
+          projectPath={projectPath}
+          samples={testSamples}
+          onUseSample={handleUseSample}
+          onResetSamples={handleResetSamples}
+          onClose={() => setShowEnvironmentWorkbench(false)}
+          onBack={handleBackToMenu}
+          onDetected={(data) => {
+            setSetupStepsData(data);
+            setShowEnvironmentWorkbench(false);
+            setShowSetupSteps(true);
+          }}
         />
       )}
 
       {showOrganizerWorkbench && (
         <FileOrganizerWorkbench
           projectPath={projectPath}
+          samples={testSamples}
+          onUseSample={handleUseSample}
+          onResetSamples={handleResetSamples}
           onClose={() => setShowOrganizerWorkbench(false)}
           onBack={handleBackToMenu}
           onPlanReady={(plan) => {
@@ -594,6 +632,14 @@ export default function App() {
             setup_steps={setupStepsData.setup_steps}
             env_vars_needed={setupStepsData.env_vars_needed}
             estimated_minutes={setupStepsData.estimated_minutes}
+            onExecuteStep={async (step) => {
+              const result = await window.electronAPI.setupEnv(projectPath, step.command);
+              if (result?.status === 'error') {
+                setError(result.error || 'Setup step failed');
+                return false;
+              }
+              return Boolean(result?.success || result?.status === 'success');
+            }}
             onClose={() => setShowSetupSteps(false)}
             onBack={handleBackToMenu}
           />
