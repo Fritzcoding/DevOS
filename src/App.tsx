@@ -33,8 +33,8 @@ const HELP_PANEL_SIZE: PanelSize = { width: 1060, height: 760 };
 const SETTINGS_PANEL_SIZE: PanelSize = { width: 1080, height: 780 };
 const APPEARANCE_PANEL_SIZE: PanelSize = { width: 900, height: 680 };
 const STATUS_PANEL_SIZE: PanelSize = { width: 520, height: 420 };
-const PANEL_SIZE_KEY = "devops-panel-size";
-const LAST_PANEL_KEY = "devops-last-panel";
+const PANEL_SIZE_KEY = "DevOS-panel-size";
+const LAST_PANEL_KEY = "DevOS-last-panel";
 
 const loadPanelSize = (): PanelSize => {
   try {
@@ -97,7 +97,7 @@ export default function App() {
 
   // Load saved project path on mount
   useEffect(() => {
-    const saved = localStorage.getItem("devops-project-path");
+    const saved = localStorage.getItem("DevOS-project-path");
     if (saved) {
       setProjectPath(saved);
       console.log("[App] Loaded project path:", saved);
@@ -290,7 +290,7 @@ export default function App() {
   // Handle project path selection
   const saveProjectPath = (path: string) => {
     setProjectPath(path);
-    localStorage.setItem("devops-project-path", path);
+    localStorage.setItem("DevOS-project-path", path);
     console.log("[App] Project path selected:", path);
   };
 
@@ -332,7 +332,7 @@ export default function App() {
         const activeSample = result.samples?.find((sample: TestSample) => (sample.projectPath || sample.path) === projectPath);
         if (!activeSample && projectPath.includes("samples")) {
           setProjectPath("");
-          localStorage.removeItem("devops-project-path");
+          localStorage.removeItem("DevOS-project-path");
         }
         return;
       }

@@ -9,171 +9,171 @@ import type { ElectronAPI } from './src/window';
 const electronAPI: ElectronAPI = {
   // Code Fixing
   fixCode: (code: string, language: string, mode: 'manual' | 'ai' = 'ai') =>
-    ipcRenderer.invoke('devops:code-fixer:fix', { code, language, mode }),
+    ipcRenderer.invoke('DevOS:code-fixer:fix', { code, language, mode }),
 
   runCodeFixAgent: (request) =>
-    ipcRenderer.invoke('devops:code-fixer:agent', request),
+    ipcRenderer.invoke('DevOS:code-fixer:agent', request),
 
   readClipboard: () =>
-    ipcRenderer.invoke('devops:clipboard:read'),
+    ipcRenderer.invoke('DevOS:clipboard:read'),
 
   writeClipboard: (content: string) =>
-    ipcRenderer.invoke('devops:clipboard:write', { content }),
+    ipcRenderer.invoke('DevOS:clipboard:write', { content }),
 
   getTestSamples: () =>
-    ipcRenderer.invoke('devops:samples:list'),
+    ipcRenderer.invoke('DevOS:samples:list'),
 
   resetTestSamples: () =>
-    ipcRenderer.invoke('devops:samples:reset'),
+    ipcRenderer.invoke('DevOS:samples:reset'),
   
   chatAI: (message: string, context?: string) =>
-    ipcRenderer.invoke('devops:chat:send', { message, context }),
+    ipcRenderer.invoke('DevOS:chat:send', { message, context }),
   
   onCodeFixStream: (callback) => {
     const wrappedCallback = (_event: any, chunk: any) => callback(chunk);
-    ipcRenderer.on('devops:code-fixer:stream', wrappedCallback);
-    return () => ipcRenderer.off('devops:code-fixer:stream', wrappedCallback);
+    ipcRenderer.on('DevOS:code-fixer:stream', wrappedCallback);
+    return () => ipcRenderer.off('DevOS:code-fixer:stream', wrappedCallback);
   },
 
   // Environment Management
   detectEnv: (projectPath: string) =>
-    ipcRenderer.invoke('devops:env:detect', { projectPath }),
+    ipcRenderer.invoke('DevOS:env:detect', { projectPath }),
   
   setupEnv: (projectPath: string, envType: string) =>
-    ipcRenderer.invoke('devops:env:setup', { projectPath, envType }),
+    ipcRenderer.invoke('DevOS:env:setup', { projectPath, envType }),
   
   onSetupEnvStream: (callback) => {
     const wrappedCallback = (_event: any, chunk: any) => callback(chunk);
-    ipcRenderer.on('devops:env:stream', wrappedCallback);
-    return () => ipcRenderer.off('devops:env:stream', wrappedCallback);
+    ipcRenderer.on('DevOS:env:stream', wrappedCallback);
+    return () => ipcRenderer.off('DevOS:env:stream', wrappedCallback);
   },
 
   // File Operations
   readFile: (filePath: string) =>
-    ipcRenderer.invoke('devops:file:read', { filePath }),
+    ipcRenderer.invoke('DevOS:file:read', { filePath }),
 
   writeFile: (filePath: string, content: string) =>
-    ipcRenderer.invoke('devops:file:write', { filePath, content }),
+    ipcRenderer.invoke('DevOS:file:write', { filePath, content }),
   
   organizeFolder: (folderPath: string, rules?: any, mode: 'professional' | 'ai' = 'professional', instruction?: string) =>
-    ipcRenderer.invoke('devops:file:organize', { folderPath, rules, mode, instruction }),
+    ipcRenderer.invoke('DevOS:file:organize', { folderPath, rules, mode, instruction }),
   
   applyOrganization: (folderPath: string, organization: any) =>
-    ipcRenderer.invoke('devops:file:apply-org', { folderPath, organization }),
+    ipcRenderer.invoke('DevOS:file:apply-org', { folderPath, organization }),
 
   chatWithCodebase: (projectPath: string, message: string, history?: Array<{ role: 'user' | 'assistant'; content: string }>) =>
-    ipcRenderer.invoke('devops:chat:codebase', { projectPath, message, history }),
+    ipcRenderer.invoke('DevOS:chat:codebase', { projectPath, message, history }),
 
   // Task Management
   cancelTask: (requestId: string) =>
-    ipcRenderer.invoke('devops:task:cancel', { requestId }),
+    ipcRenderer.invoke('DevOS:task:cancel', { requestId }),
   
   healthCheck: () =>
-    ipcRenderer.invoke('devops:health-check'),
+    ipcRenderer.invoke('DevOS:health-check'),
 
   // Streaming Events
   onChatStream: (callback) => {
     const wrappedCallback = (_event: any, chunk: any) => callback(chunk);
-    ipcRenderer.on('devops:chat:stream', wrappedCallback);
-    return () => ipcRenderer.off('devops:chat:stream', wrappedCallback);
+    ipcRenderer.on('DevOS:chat:stream', wrappedCallback);
+    return () => ipcRenderer.off('DevOS:chat:stream', wrappedCallback);
   },
 
   // Window Management
   minimizeToTray: () =>
-    ipcRenderer.invoke('devops:window:minimize-tray'),
+    ipcRenderer.invoke('DevOS:window:minimize-tray'),
   
   showMainWindow: () =>
-    ipcRenderer.invoke('devops:window:show'),
+    ipcRenderer.invoke('DevOS:window:show'),
   
   moveWindow: (x: number, y: number) =>
-    ipcRenderer.invoke('devops:window:move', x, y),
+    ipcRenderer.invoke('DevOS:window:move', x, y),
 
   resizeWindow: (width: number, height: number) =>
-    ipcRenderer.invoke('devops:window:resize', width, height),
+    ipcRenderer.invoke('DevOS:window:resize', width, height),
 
   setIgnoreMouseEvents: (ignore: boolean) =>
-    ipcRenderer.invoke('devops:window:set-ignore-mouse-events', ignore),
+    ipcRenderer.invoke('DevOS:window:set-ignore-mouse-events', ignore),
 
   deactivateApp: () =>
-    ipcRenderer.invoke('devops:app:deactivate'),
+    ipcRenderer.invoke('DevOS:app:deactivate'),
 
   getAISettings: () =>
-    ipcRenderer.invoke('devops:ai:get-settings'),
+    ipcRenderer.invoke('DevOS:ai:get-settings'),
 
   saveAISettings: (settings) =>
-    ipcRenderer.invoke('devops:ai:save-settings', settings),
+    ipcRenderer.invoke('DevOS:ai:save-settings', settings),
 
   completeAISetup: () =>
-    ipcRenderer.invoke('devops:ai:complete-setup'),
+    ipcRenderer.invoke('DevOS:ai:complete-setup'),
 
   getAIStatus: () =>
-    ipcRenderer.invoke('devops:ai:get-status'),
+    ipcRenderer.invoke('DevOS:ai:get-status'),
 
   setActiveAIBackend: (backend) =>
-    ipcRenderer.invoke('devops:ai:set-active-backend', backend),
+    ipcRenderer.invoke('DevOS:ai:set-active-backend', backend),
 
   executeAIPrompt: (request) =>
-    ipcRenderer.invoke('devops:ai:execute-prompt', request),
+    ipcRenderer.invoke('DevOS:ai:execute-prompt', request),
 
   pullOllamaModel: () =>
-    ipcRenderer.invoke('devops:ai:pull-ollama-model'),
+    ipcRenderer.invoke('DevOS:ai:pull-ollama-model'),
 
   cancelOllamaPull: () =>
-    ipcRenderer.invoke('devops:ai:cancel-ollama-pull'),
+    ipcRenderer.invoke('DevOS:ai:cancel-ollama-pull'),
 
   onOllamaPullProgress: (callback) => {
     const wrappedCallback = (_event: any, progress: any) => callback(progress);
-    ipcRenderer.on('devops:ai:ollama-pull-progress', wrappedCallback);
-    return () => ipcRenderer.off('devops:ai:ollama-pull-progress', wrappedCallback);
+    ipcRenderer.on('DevOS:ai:ollama-pull-progress', wrappedCallback);
+    return () => ipcRenderer.off('DevOS:ai:ollama-pull-progress', wrappedCallback);
   },
   
   onShowMenu: (callback) => {
     const wrappedCallback = () => callback();
-    ipcRenderer.on('devops:show-menu', wrappedCallback);
-    return () => ipcRenderer.off('devops:show-menu', wrappedCallback);
+    ipcRenderer.on('DevOS:show-menu', wrappedCallback);
+    return () => ipcRenderer.off('DevOS:show-menu', wrappedCallback);
   },
   selectProjectPath: () =>
-    ipcRenderer.invoke('devops:dialog:select-path'),
+    ipcRenderer.invoke('DevOS:dialog:select-path'),
 
   getCurrentProjectPath: () =>
-    ipcRenderer.invoke('devops:project:get-current-path'),
+    ipcRenderer.invoke('DevOS:project:get-current-path'),
 
   createDiscussionRoom: (projectPath: string, syncUrl?: string) =>
-    ipcRenderer.invoke('devops:discussion:create', { projectPath, syncUrl }),
+    ipcRenderer.invoke('DevOS:discussion:create', { projectPath, syncUrl }),
 
   joinDiscussionRoom: (projectPath: string, key: string, syncUrl?: string) =>
-    ipcRenderer.invoke('devops:discussion:join', { projectPath, key, syncUrl }),
+    ipcRenderer.invoke('DevOS:discussion:join', { projectPath, key, syncUrl }),
 
   readDiscussionRoom: (projectPath: string, key: string, syncUrl?: string) =>
-    ipcRenderer.invoke('devops:discussion:read', { projectPath, key, syncUrl }),
+    ipcRenderer.invoke('DevOS:discussion:read', { projectPath, key, syncUrl }),
 
   writeDiscussionRoom: (projectPath: string, key: string, content: string, syncUrl?: string) =>
-    ipcRenderer.invoke('devops:discussion:write', { projectPath, key, content, syncUrl }),
+    ipcRenderer.invoke('DevOS:discussion:write', { projectPath, key, content, syncUrl }),
 
   getDiscussionSyncInfo: () =>
-    ipcRenderer.invoke('devops:discussion:sync-info'),
+    ipcRenderer.invoke('DevOS:discussion:sync-info'),
 
   // Legacy compatibility
   organizeFolder_legacy: (path: string, rules: any) =>
-    ipcRenderer.invoke('devops:file:organize', { folderPath: path, rules }),
+    ipcRenderer.invoke('DevOS:file:organize', { folderPath: path, rules }),
   
   applyOrganization_legacy: (path: string, org: any) =>
-    ipcRenderer.invoke('devops:file:apply-org', { folderPath: path, organization: org }),
+    ipcRenderer.invoke('DevOS:file:apply-org', { folderPath: path, organization: org }),
   
   detectEnv_legacy: (projectPath: string) =>
-    ipcRenderer.invoke('devops:env:detect', { projectPath }),
+    ipcRenderer.invoke('DevOS:env:detect', { projectPath }),
   
   setupEnv_legacy: (projectPath: string, envType: string) =>
-    ipcRenderer.invoke('devops:env:setup', { projectPath, envType }),
+    ipcRenderer.invoke('DevOS:env:setup', { projectPath, envType }),
   
   readFile_legacy: (filePath: string) =>
-    ipcRenderer.invoke('devops:file:read', { filePath }),
+    ipcRenderer.invoke('DevOS:file:read', { filePath }),
   
   fixCode_legacy: (code: string, language: string, prompt: string) =>
-    ipcRenderer.invoke('devops:code-fixer:fix', { code, language, prompt }),
+    ipcRenderer.invoke('DevOS:code-fixer:fix', { code, language, prompt }),
   
   chatAI_legacy: (message: string, context: string) =>
-    ipcRenderer.invoke('devops:chat:send', { message, context }),
+    ipcRenderer.invoke('DevOS:chat:send', { message, context }),
 };
 
 // Expose safe API to renderer context

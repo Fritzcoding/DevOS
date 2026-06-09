@@ -115,7 +115,7 @@ const TEST_SAMPLE_DEFINITIONS: TestSampleDefinition[] = [
     projectKey: 'code-fixer-java-codebase',
     feature: 'code-fixer',
     scope: 'codebase',
-    filePath: 'src/main/java/devopslite/sample/ReportPrinter.java',
+    filePath: 'src/main/java/com/devos/sample/ReportPrinter.java',
     label: 'Java codebase',
     description: 'Small Java project with several files for whole-codebase repair',
     warning: 'local llm/api must have sufficient power for this',
@@ -519,14 +519,14 @@ ipcMain.handle(IPC_CHANNELS.HEALTH_CHECK, async (event: IpcMainInvokeEvent, requ
 // WINDOW MESSAGING
 // ============================================================================
 
-ipcMain.handle('devops:window:minimize-tray', async () => {
+ipcMain.handle('DevOS:window:minimize-tray', async () => {
   if (mainWindow) {
     mainWindow.hide();
   }
   return { success: true };
 });
 
-ipcMain.handle('devops:window:show', async () => {
+ipcMain.handle('DevOS:window:show', async () => {
   if (mainWindow) {
     mainWindow.show();
     mainWindow.focus();
@@ -534,7 +534,7 @@ ipcMain.handle('devops:window:show', async () => {
   return { success: true };
 });
 
-ipcMain.handle('devops:window:move', async (event: IpcMainInvokeEvent, x: number, y: number) => {
+ipcMain.handle('DevOS:window:move', async (event: IpcMainInvokeEvent, x: number, y: number) => {
   if (mainWindow) {
     const bounds = mainWindow.getBounds();
     const display = screen.getDisplayMatching({ x, y, width: bounds.width, height: bounds.height });
@@ -546,7 +546,7 @@ ipcMain.handle('devops:window:move', async (event: IpcMainInvokeEvent, x: number
   return { success: true };
 });
 
-ipcMain.handle('devops:window:resize', async (_event: IpcMainInvokeEvent, width: number, height: number) => {
+ipcMain.handle('DevOS:window:resize', async (_event: IpcMainInvokeEvent, width: number, height: number) => {
   if (mainWindow) {
     const nextWidth = Math.max(SHIMEJI_MIN_WINDOW_WIDTH, Math.round(Number(width) || SHIMEJI_MASCOT_WINDOW_WIDTH));
     const nextHeight = Math.max(SHIMEJI_MIN_WINDOW_HEIGHT, Math.round(Number(height) || SHIMEJI_MASCOT_WINDOW_HEIGHT));
@@ -560,27 +560,27 @@ ipcMain.handle('devops:window:resize', async (_event: IpcMainInvokeEvent, width:
   return { success: true };
 });
 
-ipcMain.handle('devops:window:set-ignore-mouse-events', async (_event: IpcMainInvokeEvent, ignore: boolean) => {
+ipcMain.handle('DevOS:window:set-ignore-mouse-events', async (_event: IpcMainInvokeEvent, ignore: boolean) => {
   if (mainWindow) {
     mainWindow.setIgnoreMouseEvents(Boolean(ignore), { forward: true });
   }
   return { success: true };
 });
 
-ipcMain.handle('devops:app:deactivate', async () => {
+ipcMain.handle('DevOS:app:deactivate', async () => {
   (app as any).isQuitting = true;
   app.quit();
   return { success: true };
 });
 
-ipcMain.handle('devops:ai:get-settings', async () => {
+ipcMain.handle('DevOS:ai:get-settings', async () => {
   return {
     success: true,
     settings: aiSettingsManager.getSafeSettings(),
   };
 });
 
-ipcMain.handle('devops:ai:save-settings', async (_event: IpcMainInvokeEvent, request: any) => {
+ipcMain.handle('DevOS:ai:save-settings', async (_event: IpcMainInvokeEvent, request: any) => {
   const settings = aiSettingsManager.save(request || {});
   return {
     success: true,
@@ -588,14 +588,14 @@ ipcMain.handle('devops:ai:save-settings', async (_event: IpcMainInvokeEvent, req
   };
 });
 
-ipcMain.handle('devops:ai:complete-setup', async () => {
+ipcMain.handle('DevOS:ai:complete-setup', async () => {
   return {
     success: true,
     settings: aiSettingsManager.redact(aiSettingsManager.markSetupComplete()),
   };
 });
 
-ipcMain.handle('devops:ai:get-status', async () => {
+ipcMain.handle('DevOS:ai:get-status', async () => {
   try {
     return {
       success: true,
@@ -609,14 +609,14 @@ ipcMain.handle('devops:ai:get-status', async () => {
   }
 });
 
-ipcMain.handle('devops:ai:set-active-backend', async (_event: IpcMainInvokeEvent, activeBackend: AIBackend) => {
+ipcMain.handle('DevOS:ai:set-active-backend', async (_event: IpcMainInvokeEvent, activeBackend: AIBackend) => {
   return {
     success: true,
     settings: await aiRouter.setActiveBackend(activeBackend),
   };
 });
 
-ipcMain.handle('devops:ai:execute-prompt', async (_event: IpcMainInvokeEvent, request: any) => {
+ipcMain.handle('DevOS:ai:execute-prompt', async (_event: IpcMainInvokeEvent, request: any) => {
   try {
     const result = await aiRouter.executePrompt(String(request?.prompt || ''), {
       systemPrompt: request?.systemPrompt,
@@ -635,18 +635,18 @@ ipcMain.handle('devops:ai:execute-prompt', async (_event: IpcMainInvokeEvent, re
   }
 });
 
-ipcMain.handle('devops:ai:pull-ollama-model', async (event: IpcMainInvokeEvent) => {
+ipcMain.handle('DevOS:ai:pull-ollama-model', async (event: IpcMainInvokeEvent) => {
   const settings = aiSettingsManager.load();
   try {
     await ollamaClient.pullModel(settings.local.model, (progress) => {
-      event.sender.send('devops:ai:ollama-pull-progress', progress);
+      event.sender.send('DevOS:ai:ollama-pull-progress', progress);
     }, settings.local.baseUrl);
     return {
       success: true,
     };
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
-    event.sender.send('devops:ai:ollama-pull-progress', {
+    event.sender.send('DevOS:ai:ollama-pull-progress', {
       model: settings.local.model,
       status: message,
       progress: 0,
@@ -661,7 +661,7 @@ ipcMain.handle('devops:ai:pull-ollama-model', async (event: IpcMainInvokeEvent) 
   }
 });
 
-ipcMain.handle('devops:ai:cancel-ollama-pull', async () => {
+ipcMain.handle('DevOS:ai:cancel-ollama-pull', async () => {
   const cancelled = ollamaClient.cancelPull();
   return {
     success: true,
@@ -669,7 +669,7 @@ ipcMain.handle('devops:ai:cancel-ollama-pull', async () => {
   };
 });
 
-ipcMain.handle('devops:code-fixer:fix', async (event: IpcMainInvokeEvent, request: any) => {
+ipcMain.handle('DevOS:code-fixer:fix', async (event: IpcMainInvokeEvent, request: any) => {
   try {
     const { code, language, mode = 'ai' } = request;
     
@@ -723,7 +723,7 @@ ipcMain.handle('devops:code-fixer:fix', async (event: IpcMainInvokeEvent, reques
   }
 });
 
-ipcMain.handle('devops:clipboard:read', async () => {
+ipcMain.handle('DevOS:clipboard:read', async () => {
   try {
     const { clipboard } = require('electron');
     const text = clipboard.readText();
@@ -740,7 +740,7 @@ ipcMain.handle('devops:clipboard:read', async () => {
   }
 });
 
-ipcMain.handle('devops:clipboard:write', async (_event: IpcMainInvokeEvent, request: any) => {
+ipcMain.handle('DevOS:clipboard:write', async (_event: IpcMainInvokeEvent, request: any) => {
   try {
     const { clipboard } = require('electron');
     clipboard.writeText(String(request?.content || ''));
@@ -754,7 +754,7 @@ ipcMain.handle('devops:clipboard:write', async (_event: IpcMainInvokeEvent, requ
   }
 });
 
-ipcMain.handle('devops:file:read', async (_event: IpcMainInvokeEvent, request: any) => {
+ipcMain.handle('DevOS:file:read', async (_event: IpcMainInvokeEvent, request: any) => {
   const started = Date.now();
   try {
     const filePath = String(request?.filePath || '');
@@ -777,7 +777,7 @@ ipcMain.handle('devops:file:read', async (_event: IpcMainInvokeEvent, request: a
   }
 });
 
-ipcMain.handle('devops:file:write', async (_event: IpcMainInvokeEvent, request: any) => {
+ipcMain.handle('DevOS:file:write', async (_event: IpcMainInvokeEvent, request: any) => {
   const started = Date.now();
   try {
     const filePath = String(request?.filePath || '');
@@ -849,7 +849,7 @@ function sampleListPayload() {
   });
 }
 
-ipcMain.handle('devops:samples:list', async () => {
+ipcMain.handle('DevOS:samples:list', async () => {
   try {
     await ensureSampleWorkdirs();
     return {
@@ -864,7 +864,7 @@ ipcMain.handle('devops:samples:list', async () => {
   }
 });
 
-ipcMain.handle('devops:samples:reset', async () => {
+ipcMain.handle('DevOS:samples:reset', async () => {
   try {
     await resetSampleWorkdirs();
     return {
@@ -879,7 +879,7 @@ ipcMain.handle('devops:samples:reset', async () => {
   }
 });
 
-ipcMain.handle('devops:code-fixer:agent', async (_event: IpcMainInvokeEvent, request: any) => {
+ipcMain.handle('DevOS:code-fixer:agent', async (_event: IpcMainInvokeEvent, request: any) => {
   const started = Date.now();
   try {
     const {
@@ -970,7 +970,7 @@ ipcMain.handle('devops:code-fixer:agent', async (_event: IpcMainInvokeEvent, req
   }
 });
 
-ipcMain.handle('devops:project:get-current-path', async () => {
+ipcMain.handle('DevOS:project:get-current-path', async () => {
   try {
     return {
       success: true,
@@ -986,7 +986,7 @@ ipcMain.handle('devops:project:get-current-path', async () => {
   }
 });
 
-ipcMain.handle('devops:chat:codebase', async (_event: IpcMainInvokeEvent, request: any) => {
+ipcMain.handle('DevOS:chat:codebase', async (_event: IpcMainInvokeEvent, request: any) => {
   const started = Date.now();
   try {
     const { projectPath, message, history = [] } = request || {};
@@ -1033,7 +1033,7 @@ ipcMain.handle('devops:chat:codebase', async (_event: IpcMainInvokeEvent, reques
   }
 });
 
-ipcMain.handle('devops:discussion:create', async (_event: IpcMainInvokeEvent, request: any) => {
+ipcMain.handle('DevOS:discussion:create', async (_event: IpcMainInvokeEvent, request: any) => {
   try {
     const key = randomBytes(4).toString('hex').toUpperCase();
     const result = await ensureDiscussionRoom(request?.projectPath || process.cwd(), key, true);
@@ -1049,7 +1049,7 @@ ipcMain.handle('devops:discussion:create', async (_event: IpcMainInvokeEvent, re
   }
 });
 
-ipcMain.handle('devops:discussion:join', async (_event: IpcMainInvokeEvent, request: any) => {
+ipcMain.handle('DevOS:discussion:join', async (_event: IpcMainInvokeEvent, request: any) => {
   try {
     const key = sanitizeRoomKey(request?.key);
     const syncUrl = normalizeDiscussionSyncUrl(request?.syncUrl);
@@ -1066,7 +1066,7 @@ ipcMain.handle('devops:discussion:join', async (_event: IpcMainInvokeEvent, requ
   }
 });
 
-ipcMain.handle('devops:discussion:read', async (_event: IpcMainInvokeEvent, request: any) => {
+ipcMain.handle('DevOS:discussion:read', async (_event: IpcMainInvokeEvent, request: any) => {
   try {
     const key = sanitizeRoomKey(request?.key);
     const syncUrl = normalizeDiscussionSyncUrl(request?.syncUrl);
@@ -1085,7 +1085,7 @@ ipcMain.handle('devops:discussion:read', async (_event: IpcMainInvokeEvent, requ
   }
 });
 
-ipcMain.handle('devops:discussion:write', async (_event: IpcMainInvokeEvent, request: any) => {
+ipcMain.handle('DevOS:discussion:write', async (_event: IpcMainInvokeEvent, request: any) => {
   try {
     const key = sanitizeRoomKey(request?.key);
     const content = String(request?.content || '');
@@ -1102,7 +1102,7 @@ ipcMain.handle('devops:discussion:write', async (_event: IpcMainInvokeEvent, req
   }
 });
 
-ipcMain.handle('devops:discussion:sync-info', async () => {
+ipcMain.handle('DevOS:discussion:sync-info', async () => {
   try {
     const info = await ensureInternalRoomSyncServer();
     return { success: true, ...info };
@@ -1115,7 +1115,7 @@ ipcMain.handle('devops:discussion:sync-info', async () => {
 // ENVIRONMENT BUILDER - IPC HANDLERS
 // ============================================================================
 
-ipcMain.handle('devops:env:detect', async (event: IpcMainInvokeEvent, request: any) => {
+ipcMain.handle('DevOS:env:detect', async (event: IpcMainInvokeEvent, request: any) => {
   try {
     const { projectPath } = request;
     
@@ -1151,7 +1151,7 @@ ipcMain.handle('devops:env:detect', async (event: IpcMainInvokeEvent, request: a
   }
 });
 
-ipcMain.handle('devops:env:setup', async (event: IpcMainInvokeEvent, request: any) => {
+ipcMain.handle('DevOS:env:setup', async (event: IpcMainInvokeEvent, request: any) => {
   const started = Date.now();
   try {
     const { projectPath, envType } = request;
@@ -1224,7 +1224,7 @@ ipcMain.handle('devops:env:setup', async (event: IpcMainInvokeEvent, request: an
 // FILE ORGANIZER - IPC HANDLERS
 // ============================================================================
 
-ipcMain.handle('devops:file:organize', async (event: IpcMainInvokeEvent, request: any) => {
+ipcMain.handle('DevOS:file:organize', async (event: IpcMainInvokeEvent, request: any) => {
   try {
     const { folderPath, mode = 'professional', instruction = '' } = request;
     
@@ -1282,7 +1282,7 @@ ipcMain.handle('devops:file:organize', async (event: IpcMainInvokeEvent, request
   }
 });
 
-ipcMain.handle('devops:file:apply-org', async (event: IpcMainInvokeEvent, request: any) => {
+ipcMain.handle('DevOS:file:apply-org', async (event: IpcMainInvokeEvent, request: any) => {
   try {
     const { folderPath, organization, dryRun = false } = request;
     
@@ -1330,7 +1330,7 @@ ipcMain.handle('devops:file:apply-org', async (event: IpcMainInvokeEvent, reques
 // DIALOG HANDLERS
 // ============================================================================
 
-ipcMain.handle('devops:dialog:select-path', async () => {
+ipcMain.handle('DevOS:dialog:select-path', async () => {
   try {
     const { dialog } = require('electron');
     const result = await dialog.showOpenDialog(mainWindow!, {
@@ -1703,11 +1703,11 @@ function sanitizeRoomKey(key: string): string {
 }
 
 function getDiscussionRoomPath(projectPath: string, key: string): string {
-  return path.join(projectPath, '.devops-lite', 'rooms', `${sanitizeRoomKey(key)}.md`);
+  return path.join(projectPath, '.DevOS-lite', 'rooms', `${sanitizeRoomKey(key)}.md`);
 }
 
 function normalizeDiscussionSyncUrl(value: unknown): string {
-  const raw = String(value || process.env.DEVOPS_ROOM_SYNC_URL || '').trim();
+  const raw = String(value || process.env.DevOS_ROOM_SYNC_URL || '').trim();
   if (!raw) return '';
   const parsed = new URL(raw);
   if (parsed.protocol !== 'https:' && parsed.protocol !== 'http:') {
@@ -1722,7 +1722,7 @@ async function ensureInternalRoomSyncServer(): Promise<{ url: string; port: numb
   if (internalRoomSync) return { url: internalRoomSync.url, port: internalRoomSync.port };
   const http = require('http');
   const os = require('os');
-  const dataDir = path.resolve(process.cwd(), '.devops-lite', 'remote-rooms');
+  const dataDir = path.resolve(process.cwd(), '.DevOS-lite', 'remote-rooms');
   await fsExtra.ensureDir(dataDir);
 
   const roomFile = (key: string) => path.join(dataDir, `${sanitizeRoomKey(key)}.md`);
@@ -1872,7 +1872,7 @@ async function ensureDiscussionRoom(projectPath: string, key: string, create: bo
     if (!create) throw new Error('Discussion room does not exist');
     await fsExtra.writeFile(
       roomPath,
-      `# DevOps Lite Room ${key}\n\nUse this shared note for development discussion.\n`,
+      `# DevOS Lite Room ${key}\n\nUse this shared note for development discussion.\n`,
       'utf8'
     );
   }

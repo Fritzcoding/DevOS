@@ -1,37 +1,40 @@
 {
-  "name": "devops-lite",
+  "name": "DevOS-lite",
   "private": true,
   "version": "1.0.0",
   "main": "main.js",
   "engines": {
-    "node": ">=20.19.0",
-    "npm": ">=10.0.0"
+    "node": ">=18.0.0",
+    "npm": ">=8.0.0"
   },
   "lint": "eslint src --ext .ts,.tsx",
   "format": "prettier --write src",
   "scripts": {
+    "start": "npm install && npm run compile:main && npm run build:java && npm run electron",
     "preinstall": "node scripts/preflight.mjs --install",
     "preflight": "node scripts/preflight.mjs",
-    "setup": "npm run preflight && npm install && npm run compile:main",
+    "build:java": "node scripts/build-java.mjs",
+    "setup": "npm install && npm run compile:main && npm run build:java",
     "compile:main": "tsc main.ts preload.ts --lib ES2022,DOM --module commonjs --target ES2022 --moduleResolution node --esModuleInterop --skipLibCheck",
-    "dev": "npm run compile:main && concurrently \"vite\" \"cross-env NODE_ENV=development electron . --shimeji\"",
-    "dev:shimeji": "npm run compile:main && concurrently \"vite\" \"electron . --shimeji\"",
+    "dev": "npm install && npm run compile:main && npm run build:java && concurrently \"vite\" \"cross-env NODE_ENV=development electron . --shimeji\"",
+    "dev:shimeji": "npm run compile:main && npm run build:java && concurrently \"vite\" \"electron . --shimeji\"",
     "dev:vite": "vite",
-    "dev:watch": "concurrently \"npm run compile:main -- --watch\" \"vite\"",
-    "build": "npm run compile:main && vite build && tsc --noEmit && npm run package:dist",
+    "dev:watch": "concurrently \"npm run compile:main -- --watch\" \"npm run build:java\" \"vite\"",
+    "build": "npm run compile:main && npm run build:java && vite build && tsc --noEmit && npm run package:dist",
     "package:dist": "echo 'Application built successfully. Run: npm run dev' ",
     "build:web": "vite build",
     "preview": "vite preview",
     "electron": "electron .",
     "type-check": "tsc --noEmit",
-    "clean": "node scripts/clean.mjs",
+    "clean": "node scripts/clean.mjs && rmdir /s /q java\\target 2>nul; rm -rf dist node_modules package-lock.json || true",
     "reset:test-fixtures": "node scripts/reset-test-fixtures.mjs",
     "reset:samples": "node scripts/reset-samples.mjs",
     "room-sync": "node scripts/room-sync-server.mjs",
     "check:samples": "npm run reset:samples && tsx tests/samples.test.ts",
     "test": "npm run reset:test-fixtures && npm run check:samples && tsx tests/features.test.ts",
-    "verify": "npm run preflight && npm run test && npm run type-check",
-    "lint": "tsc --noEmit"
+    "verify": "npm run test && npm run type-check",
+    "lint": "tsc --noEmit",
+    "install-only": "npm install"
   },
   "dependencies": {
     "@google/genai": "^1.29.0",
@@ -76,8 +79,8 @@
     "vite": "^6.2.0"
   },
   "build": {
-    "appId": "com.devopslite.app",
-    "productName": "DevOps Lite",
+    "appId": "com.DevOSlite.app",
+    "productName": "DevOS Lite",
     "files": [
       "main.js",
       "preload.js",
