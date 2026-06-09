@@ -29,11 +29,6 @@ preload.js.map
 tests/fixtures/workdir/
 samples/workdir/
 
-.codex/
-.github/
-presentation/
-outputs/
-
 QUICK_REFERENCE.md
 JAVA_INTEGRATION.md
 JAVA_EXAMPLES.md
