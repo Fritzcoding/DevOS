@@ -5,8 +5,8 @@
  */
 
 import { spawn } from 'child_process';
+import { randomUUID } from 'crypto';
 import path from 'path';
-import { v4 as uuidv4 } from 'uuid';
 import { logger } from '../logger';
 
 interface PendingRequest {
@@ -53,23 +53,22 @@ export class JavaServiceAdapter {
       try {
         this.process = spawn('java', ['-jar', this.javaJarPath], {
           stdio: ['pipe', 'pipe', 'pipe'],
-          maxBuffer: 10 * 1024 * 1024,
         });
 
         this.process.stdout?.on('data', (data) => this.handleData(data));
         this.process.stderr?.on('data', (data) => {
-          logger.debug('[Java Service]', data.toString().trim());
+          logger.debug('JavaService', data.toString().trim());
         });
 
         this.process.on('error', (err) => {
-          logger.error('Java service process error:', err);
+          logger.error('JavaService', 'Java service process error', undefined, err);
           this.cleanup();
           reject(err);
         });
 
         this.process.on('exit', (code) => {
           if (code !== 0) {
-            logger.warn(\Java service exited with code \\);
+            logger.warn('JavaService', `Java service exited with code ${code}`);
           }
           this.cleanup();
         });
@@ -89,7 +88,7 @@ export class JavaServiceAdapter {
       await this.start();
     }
 
-    const requestId = uuidv4();
+    const requestId = randomUUID();
     const message = {
       command,
       requestId,
@@ -99,7 +98,7 @@ export class JavaServiceAdapter {
     return new Promise((resolve, reject) => {
       const timeoutHandle = setTimeout(() => {
         this.pendingRequests.delete(requestId);
-        reject(new Error(\Java service request timeout for command: \\));
+        reject(new Error(`Java service request timeout for command: ${command}`));
       }, timeout);
 
       this.pendingRequests.set(requestId, {
@@ -130,7 +129,12 @@ export class JavaServiceAdapter {
         const response = JSON.parse(line);
         this.handleResponse(response);
       } catch (err) {
-        logger.error('Failed to parse Java service response:', line, err);
+        logger.error(
+          'JavaService',
+          'Failed to parse Java service response',
+          { line },
+          err instanceof Error ? err : undefined,
+        );
       }
     }
   }
@@ -139,7 +143,7 @@ export class JavaServiceAdapter {
     const { requestId, status } = response;
 
     if (!requestId || !this.pendingRequests.has(requestId)) {
-      logger.warn('Unexpected response from Java service:', response);
+      logger.warn('JavaService', 'Unexpected response from Java service', { response });
       return;
     }
 
