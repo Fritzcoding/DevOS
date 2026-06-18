@@ -51,8 +51,8 @@ The Electron app is cross-platform in principle, but the current `npm run build:
 ## 3. Install From a Clean Checkout
 
 ```bash
-git clone <repo-url>
-cd DevOS-lite
+git clone https://github.com/Fritzcoding/DevOS.git
+cd DevOS
 npm run preflight
 npm run setup
 ```
