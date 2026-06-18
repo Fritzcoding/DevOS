@@ -33,13 +33,13 @@ const tools = [
   },
   {
     icon: MessageSquare,
-    title: 'Codebase Chat',
-    text: 'Ask questions against the active codebase context.',
+    title: 'AI Chat Repo',
+    text: 'Ask AI questions against the active repo context.',
   },
   {
     icon: Users,
     title: 'Development Room',
-    text: 'Create or join a shared project note room by key.',
+    text: 'Create or join shared project notes, then ask AI from the room side panel.',
   },
 ];
 
@@ -58,7 +58,7 @@ const faqs = [
   },
   {
     question: 'How do rooms work?',
-    answer: 'Create a room key, share it with teammates using the same project folder, and edit the shared note file together.',
+    answer: 'Create a room key, share it with teammates using the same project folder, and edit the shared note file together. Use the Ask AI panel on the right for repo-aware questions that include the room notes.',
   },
 ];
 
@@ -67,7 +67,7 @@ export const HelpModal: React.FC<HelpModalProps> = ({ onClose, onBack }) => {
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 p-4 backdrop-blur-sm" data-electron-interactive="true">
-      <div className="flex max-h-[88vh] w-full max-w-5xl flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-[0_24px_120px_rgba(2,6,23,0.4)]">
+      <div className="flex max-h-[88vh] w-full max-w-5xl flex-col overflow-hidden rounded-lg border border-slate-200 bg-white shadow-[0_24px_120px_rgba(2,6,23,0.4)]">
         <div className="flex items-start justify-between border-b border-slate-200 bg-gradient-to-r from-slate-950 via-slate-900 to-slate-800 px-6 py-5 text-white">
           <div>
             <div className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/10 px-3 py-1 text-xs font-medium text-slate-100">
@@ -92,77 +92,81 @@ export const HelpModal: React.FC<HelpModalProps> = ({ onClose, onBack }) => {
           </div>
         </div>
 
-        <div className="flex border-b border-slate-200 bg-slate-50 px-4">
-          {tabs.map((item) => (
-            <button
-              key={item.id}
-              onClick={() => setTab(item.id)}
-              className={`px-4 py-3 text-sm font-semibold transition ${
-                tab === item.id ? 'border-b-2 border-slate-900 text-slate-900' : 'text-slate-500 hover:text-slate-900'
-              }`}
-            >
-              {item.label}
-            </button>
-          ))}
+        <div className="border-b border-slate-200 bg-slate-50 px-4">
+          <div className="flex divide-x divide-slate-200">
+            {tabs.map((item) => (
+              <button
+                key={item.id}
+                onClick={() => setTab(item.id)}
+                className={`min-w-[8rem] px-5 py-3 text-center text-sm font-semibold transition ${
+                  tab === item.id
+                    ? 'border-b-2 border-slate-900 bg-white text-slate-900'
+                    : 'text-slate-500 hover:bg-white/70 hover:text-slate-900'
+                }`}
+              >
+                {item.label}
+              </button>
+            ))}
+          </div>
         </div>
 
-        <div className="min-h-0 flex-1 overflow-auto p-6">
+        <div className="min-h-0 flex-1 overflow-auto bg-slate-100/70 p-6">
           {tab === 'overview' && (
-            <div className="grid gap-4 md:grid-cols-2">
-              <div className="rounded-2xl border border-slate-200 bg-slate-50 p-5">
+            <div className="grid gap-6 md:grid-cols-2">
+              <section className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
                 <h3 className="text-lg font-semibold text-slate-900">Current workflow</h3>
                 <ul className="mt-3 space-y-3 text-sm text-slate-700">
                   <li className="flex gap-3"><span className="font-semibold text-slate-500">1.</span> Select or detect a project path.</li>
                   <li className="flex gap-3"><span className="font-semibold text-slate-500">2.</span> Open a tool from the feature menu.</li>
                   <li className="flex gap-3"><span className="font-semibold text-slate-500">3.</span> Review the output, then auto-apply when you trust it.</li>
                 </ul>
-              </div>
-              <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+              </section>
+              <section className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
                 <h3 className="text-lg font-semibold text-slate-900">Useful actions</h3>
                 <div className="mt-3 space-y-2 text-sm text-slate-700">
                   <div className="flex items-center gap-2"><KeyRound className="h-4 w-4 text-slate-500" /> Create or join a development room by key.</div>
                   <div className="flex items-center gap-2"><Bot className="h-4 w-4 text-slate-500" /> Use Code Fixer in codebase scope for broader context.</div>
                   <div className="flex items-center gap-2"><ChevronRight className="h-4 w-4 text-slate-500" /> Use Current in the menu to re-read the current path.</div>
                 </div>
-              </div>
+              </section>
             </div>
           )}
 
           {tab === 'shortcuts' && (
-            <div className="grid gap-4 md:grid-cols-2">
-              <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+            <div className="grid gap-6 md:grid-cols-2">
+              <section className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
                 <h3 className="text-lg font-semibold text-slate-900">Global shortcuts</h3>
-                <div className="mt-3 space-y-2">
+                <div className="mt-4 space-y-3">
                   {shortcuts.map((shortcut) => (
-                    <div key={shortcut.key} className="flex items-center justify-between rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm">
+                    <div key={shortcut.key} className="flex items-center justify-between rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm">
                       <span className="text-slate-700">{shortcut.action}</span>
                       <kbd className="rounded-md bg-slate-900 px-2 py-1 text-xs font-semibold text-white">{shortcut.key}</kbd>
                     </div>
                   ))}
                 </div>
-              </div>
-              <div className="rounded-2xl border border-slate-200 bg-slate-50 p-5">
+              </section>
+              <section className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
                 <h3 className="text-lg font-semibold text-slate-900">Code Fixer actions</h3>
-                <div className="mt-3 space-y-3 text-sm text-slate-700">
-                  <div className="rounded-xl border border-slate-200 bg-white p-3">
+                <div className="mt-4 space-y-4 text-sm text-slate-700">
+                  <div className="rounded-lg border border-slate-200 bg-slate-50 p-3">
                     <div className="font-semibold text-slate-900">Preview fix</div>
                     <div className="mt-1">Runs the agent and shows proposed changes before writing anything.</div>
                   </div>
-                  <div className="rounded-xl border border-slate-200 bg-white p-3">
+                  <div className="rounded-lg border border-slate-200 bg-slate-50 p-3">
                     <div className="font-semibold text-slate-900">Auto apply fix</div>
                     <div className="mt-1">Generates the patch and writes it to disk in one action. Use <kbd className="rounded bg-slate-900 px-1.5 py-0.5 text-[11px] text-white">Ctrl+Enter</kbd> or <kbd className="rounded bg-slate-900 px-1.5 py-0.5 text-[11px] text-white">Cmd+Enter</kbd>.</div>
                   </div>
                 </div>
-              </div>
+              </section>
             </div>
           )}
 
           {tab === 'tools' && (
-            <div className="grid gap-4 md:grid-cols-2">
+            <div className="grid gap-6 md:grid-cols-2">
               {tools.map(({ icon: Icon, title, text }) => (
-                <div key={title} className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+                <section key={title} className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
                   <div className="flex items-center gap-3">
-                    <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-slate-900 text-white">
+                    <span className="flex h-10 w-10 items-center justify-center rounded-lg bg-slate-900 text-white">
                       <Icon className="h-4 w-4" />
                     </span>
                     <div>
@@ -170,15 +174,15 @@ export const HelpModal: React.FC<HelpModalProps> = ({ onClose, onBack }) => {
                       <div className="text-sm text-slate-500">{text}</div>
                     </div>
                   </div>
-                </div>
+                </section>
               ))}
             </div>
           )}
 
           {tab === 'faq' && (
-            <div className="space-y-3">
+            <div className="space-y-4">
               {faqs.map((item) => (
-                <details key={item.question} className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+                <details key={item.question} className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
                   <summary className="cursor-pointer list-none text-sm font-semibold text-slate-900">{item.question}</summary>
                   <p className="mt-2 text-sm text-slate-600">{item.answer}</p>
                 </details>

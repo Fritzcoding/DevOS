@@ -320,10 +320,12 @@ Welcome to DevOps Lite! Here's the quickest way to get started:
 
 1. **See the Shimeji** - The floating icon in the top-right corner (or wherever you dragged it). That's your entry point to everything.
 
-2. **Click the Shimeji** - Brings up the Feature Menu showing your 3 tools:
+2. **Click the Shimeji** - Brings up the Feature Menu showing your core tools:
    - Code Fixer (fix bugs, improve code)
    - Environment Builder (setup your dev environment)
    - File Organizer (clean up your project structure)
+   - AI Chat Repo (ask AI about the selected repository)
+   - Dev Room (shared notes with an AI question panel)
 
 3. **Pick a Feature** - Click one to open it. Each feature opens in a clean modal.
 

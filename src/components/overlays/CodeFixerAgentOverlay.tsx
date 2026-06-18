@@ -13,6 +13,13 @@ type FileGroup = {
   fixed: string;
 };
 
+type ReviewChange = {
+  original: string;
+  fixed: string;
+  explanation: string;
+  lineLabel?: string;
+};
+
 type FileTreeNode = {
   name: string;
   path: string;
@@ -75,6 +82,69 @@ function buildFileTree(groups: FileGroup[]): FileTreeNode[] {
   return root;
 }
 
+function buildLineReviewChanges(original: string, fixed: string, explanation = ''): ReviewChange[] {
+  if (original === fixed) return [];
+
+  const beforeLines = original.split('\n');
+  const afterLines = fixed.split('\n');
+  const rows = beforeLines.length;
+  const cols = afterLines.length;
+  const dp = Array.from({ length: rows + 1 }, () => Array(cols + 1).fill(0));
+
+  for (let i = rows - 1; i >= 0; i -= 1) {
+    for (let j = cols - 1; j >= 0; j -= 1) {
+      dp[i][j] = beforeLines[i] === afterLines[j]
+        ? dp[i + 1][j + 1] + 1
+        : Math.max(dp[i + 1][j], dp[i][j + 1]);
+    }
+  }
+
+  const changes: ReviewChange[] = [];
+  let pending: { before: string[]; after: string[]; beforeStart: number; afterStart: number } | null = null;
+
+  const startPending = (beforeIndex: number, afterIndex: number) => {
+    if (!pending) {
+      pending = { before: [], after: [], beforeStart: beforeIndex + 1, afterStart: afterIndex + 1 };
+    }
+  };
+
+  const flushPending = () => {
+    if (!pending) return;
+    const beforeEnd = pending.beforeStart + Math.max(0, pending.before.length - 1);
+    const afterEnd = pending.afterStart + Math.max(0, pending.after.length - 1);
+    const beforeLabel = pending.before.length ? `Before line${pending.before.length === 1 ? '' : 's'} ${pending.beforeStart}${beforeEnd !== pending.beforeStart ? `-${beforeEnd}` : ''}` : 'Before insertion point';
+    const afterLabel = pending.after.length ? `after line${pending.after.length === 1 ? '' : 's'} ${pending.afterStart}${afterEnd !== pending.afterStart ? `-${afterEnd}` : ''}` : 'deleted';
+    changes.push({
+      original: pending.before.join('\n'),
+      fixed: pending.after.join('\n'),
+      lineLabel: `${beforeLabel} -> ${afterLabel}`,
+      explanation: explanation || 'Updated this line to match the proposed fix.',
+    });
+    pending = null;
+  };
+
+  let i = 0;
+  let j = 0;
+  while (i < rows || j < cols) {
+    if (i < rows && j < cols && beforeLines[i] === afterLines[j]) {
+      flushPending();
+      i += 1;
+      j += 1;
+    } else if (j >= cols || (i < rows && dp[i + 1][j] >= dp[i][j + 1])) {
+      startPending(i, j);
+      pending?.before.push(beforeLines[i]);
+      i += 1;
+    } else {
+      startPending(i, j);
+      pending?.after.push(afterLines[j]);
+      j += 1;
+    }
+  }
+  flushPending();
+
+  return changes;
+}
+
 export const CodeFixerAgentOverlay: React.FC<Props> = ({ projectPath, samples = [], onUseSample, onResetSamples, onClose, onBack }) => {
   const [activeTab, setActiveTab] = useState<CodeFixTab>('setup');
   const [scope, setScope] = useState<CodeFixScope>('codebase');
@@ -117,6 +187,26 @@ export const CodeFixerAgentOverlay: React.FC<Props> = ({ projectPath, samples = 
     }));
   }, [changes, fileDiffs]);
   const selectedGroup = fileGroups.find((group) => group.path === selectedFile) || fileGroups[0];
+  const selectedReviewChanges = useMemo<ReviewChange[]>(() => {
+    if (!selectedGroup) return [];
+    const wholeOriginal = (selectedGroup.original || '').trim();
+    const wholeFixed = (selectedGroup.fixed || '').trim();
+    const reviewChanges = selectedGroup.changes.flatMap((change: any) => {
+      const changeOriginal = String(change.original || '').trim();
+      const changeFixed = String(change.fixed || '').trim();
+      const explanation = String(change.explanation || '');
+      if (changeOriginal === wholeOriginal && changeFixed === wholeFixed) {
+        return buildLineReviewChanges(selectedGroup.original || '', selectedGroup.fixed || '', explanation);
+      }
+      return [{
+        original: String(change.original || ''),
+        fixed: String(change.fixed || ''),
+        explanation,
+      }];
+    });
+    if (reviewChanges.length > 0) return reviewChanges;
+    return buildLineReviewChanges(selectedGroup.original || '', selectedGroup.fixed || '');
+  }, [selectedGroup]);
   const fileTree = useMemo(() => buildFileTree(fileGroups), [fileGroups]);
   const confidence = Number(result?.confidence || 0);
   const codeFixerSamples = samples.filter((sample) => sample.feature === 'code-fixer');
@@ -705,20 +795,26 @@ export const CodeFixerAgentOverlay: React.FC<Props> = ({ projectPath, samples = 
                       </div>
                     </section>
 
-                    {selectedGroup.changes.map((change: any, index: number) => (
+                    {selectedReviewChanges.length > 0 && (
+                      <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">Line-level changes</div>
+                    )}
+                    {selectedReviewChanges.map((change, index) => (
                       <section key={`${selectedGroup.path}-${index}`} className="overflow-hidden rounded-lg border border-slate-200">
                         <div className="border-b border-slate-200 bg-slate-50 px-4 py-3">
-                          <div className="text-sm font-semibold text-slate-900">Change {index + 1}</div>
+                          <div className="flex flex-wrap items-center gap-2">
+                            <div className="text-sm font-semibold text-slate-900">Change {index + 1}</div>
+                            {change.lineLabel && <div className="rounded bg-slate-200 px-2 py-0.5 text-xs font-medium text-slate-700">{change.lineLabel}</div>}
+                          </div>
                           {change.explanation && <div className="mt-1 text-sm text-slate-600">{change.explanation}</div>}
                         </div>
-                        <div className="grid min-h-[20rem] grid-cols-2">
+                        <div className="grid min-h-[6rem] grid-cols-2">
                           <div className="min-w-0 border-r border-slate-200">
                             <div className="border-b border-rose-200 bg-rose-50 px-3 py-2 text-xs font-semibold uppercase tracking-wide text-rose-700">Before</div>
-                            <pre className="h-full max-h-[32rem] overflow-auto bg-rose-50/60 p-4 text-xs leading-relaxed text-rose-950">{change.original || ''}</pre>
+                            <pre className="h-full max-h-[14rem] overflow-auto bg-rose-50/60 p-4 text-xs leading-relaxed text-rose-950">{change.original || ''}</pre>
                           </div>
                           <div className="min-w-0">
                             <div className="border-b border-emerald-200 bg-emerald-50 px-3 py-2 text-xs font-semibold uppercase tracking-wide text-emerald-700">After</div>
-                            <pre className="h-full max-h-[32rem] overflow-auto bg-emerald-50/60 p-4 text-xs leading-relaxed text-emerald-950">{change.fixed || ''}</pre>
+                            <pre className="h-full max-h-[14rem] overflow-auto bg-emerald-50/60 p-4 text-xs leading-relaxed text-emerald-950">{change.fixed || ''}</pre>
                           </div>
                         </div>
                       </section>

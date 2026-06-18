@@ -73,7 +73,7 @@ export const CodebaseChatOverlay: React.FC<Props> = ({ projectPath, visible, pan
       >
         <div className="flex items-center justify-between bg-blue-700 px-5 py-4 text-white">
           <div>
-            <h2 className="text-lg font-semibold">Codebase Chat</h2>
+            <h2 className="text-lg font-semibold">AI Chat Repo</h2>
             <p className="text-xs text-blue-100">{projectPath}</p>
           </div>
           <div className="flex items-center gap-2">

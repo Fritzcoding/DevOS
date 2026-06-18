@@ -1,6 +1,6 @@
 # DevOS Lite
 
-DevOS Lite is an Electron desktop assistant for developer workflows. It provides Code Fixer, Environment Builder, File Organizer, Codebase Chat, and Discussion Room features through a floating Shimeji-style UI.
+DevOS Lite is an Electron desktop assistant for developer workflows. It provides Code Fixer, Environment Builder, File Organizer, AI Chat Repo, and Discussion Room features through a floating Shimeji-style UI.
 
 ## Clean Laptop Setup
 

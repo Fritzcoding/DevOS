@@ -87,8 +87,8 @@ export const FeatureMenu: React.FC<FeatureMenuProps> = ({
     {
       key: 'chat' as const,
       icon: MessageSquare,
-      label: 'Codebase Chat',
-      description: 'Ask with repo context',
+      label: 'AI Chat Repo',
+      description: 'Ask AI with repo context',
       color: 'bg-sky-700',
     },
     {

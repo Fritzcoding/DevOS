@@ -290,7 +290,7 @@ Rules:
         return this.request(systemPrompt, userMessage, 4096);
     }
     async chatWithCodebase(message, context, history = []) {
-        const systemPrompt = `You are DevOps Lite's codebase chat assistant.
+        const systemPrompt = `You are DevOps Lite's AI Chat Repo assistant.
 
 Respond in plain text, not JSON.
 Be conversational for greetings and general questions.
