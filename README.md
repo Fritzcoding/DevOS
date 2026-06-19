@@ -9,6 +9,15 @@ DevOS Lite is a desktop assistant for developer workflows. It runs as an Electro
 - Dev Room for shared project notes with optional room sync and repo-aware AI
 - AI and appearance settings for cloud/local AI, theme, mascot image, and motion
 
+## Changes Made After Demo
+- Enhanced the UI and Output of Code Fixer
+- Upgraded Dev Room by implementing AI Chat Model for AI Integrated Development Chat Room.
+- Upgraded README
+- Enhanced AI option of API and Local LLM
+- Enhanced Dev Room Auto-save and Connection
+- Added further Documentation & New Demo Video
+- Help feature Upgraded
+  
 ## 1. Read This First
 
 DevOS Lite can read project files and, when you choose apply/run actions, can write files or execute setup commands inside the selected project. For safe use:
