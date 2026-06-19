@@ -1,6 +1,6 @@
-# DevOS Lite
+# DevOS
 
-DevOS Lite is a desktop assistant for developer workflows. It runs as an Electron app with a floating Shimeji-style launcher and provides:
+DevOS is a desktop assistant for developer workflows. It runs as an Electron app with a floating Shimeji-style launcher and provides:
 
 - Code Fixer for clipboard snippets, single files, or small codebases
 - Environment Builder for detecting project stacks and running reviewed setup commands
